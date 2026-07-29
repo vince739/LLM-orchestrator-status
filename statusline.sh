@@ -33,6 +33,7 @@ ORANGE='\033[38;2;230;150;60m'
 SILVER='\033[38;2;200;210;220m'
 CODEX_GREEN='\033[38;2;16;163;127m'
 GEMINI_PURPLE='\033[38;2;156;93;247m'
+PERPLEXITY_TEAL='\033[38;2;32;178;170m'
 
 SEP="${GRAY} | ${RESET}"
 
@@ -614,5 +615,112 @@ if command -v gemini >/dev/null 2>&1 && [ -f "$gemini_creds" ]; then
 fi
 
 [ -n "$gemini_line" ] && out="${out}\n${gemini_line}"
+
+# ── Perplexity dispatch line (fourth row) ────────────────────────────────────
+# Mirrors Gemini block. Model varies per call based on prompt prefix
+# (deep:/reason:/fast:/default), so we read it from last.json rather than a
+# separate cache. Row hidden when neither PERPLEXITY_API_KEY is set nor any
+# prior dispatch exists.
+perplexity_line=""
+perplexity_last_json="$HOME/.claude/perplexity-last.json"
+
+if [ -n "${PERPLEXITY_API_KEY:-}" ] || [ -f "$perplexity_last_json" ]; then
+  perplexity_part="${PERPLEXITY_TEAL}${BOLD}perplexity${RESET}"
+
+  if [ -f "$perplexity_last_json" ]; then
+    perplexity_model=$(jq -r '.model // empty' "$perplexity_last_json" 2>/dev/null)
+    if [ -n "$perplexity_model" ]; then
+      perplexity_model_short="${perplexity_model#sonar-}"
+      [ "$perplexity_model_short" = "$perplexity_model" ] && perplexity_model_short="$perplexity_model"
+      perplexity_model_color="${DIM}"
+      pt=$(jq -r '.timestamp // empty' "$perplexity_last_json" 2>/dev/null)
+      if [ -n "$pt" ]; then
+        pts=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$pt" +%s 2>/dev/null)
+        if [ -n "$pts" ] && [ "$(( $(date -u +%s) - pts ))" -lt 600 ]; then
+          perplexity_model_color="${CYAN}"
+        fi
+      fi
+      perplexity_part="${perplexity_part} ${DIM}·${RESET} ${perplexity_model_color}${perplexity_model_short}${RESET}"
+    fi
+  fi
+
+  perplexity_cap_5h="${PERPLEXITY_DISPATCH_CAP_5H:-100}"
+  perplexity_dispatches_5h=0
+  perplexity_toks_5h=0
+  perplexity_cits_5h=0
+  if [ -d "$HOME/.claude/logs" ]; then
+    perplexity_cutoff_5h=$(date -u -v-5H +%s 2>/dev/null)
+    if [ -n "$perplexity_cutoff_5h" ]; then
+      for f in "$HOME"/.claude/logs/perplexity-*.log; do
+        [ -f "$f" ] || continue
+        case "$f" in *.response.json) continue ;; esac
+        m=$(stat -f "%m" "$f" 2>/dev/null)
+        if [ -n "$m" ] && [ "$m" -ge "$perplexity_cutoff_5h" ]; then
+          perplexity_dispatches_5h=$((perplexity_dispatches_5h+1))
+          t=$(grep -oE 'tokens=[0-9]+' "$f" 2>/dev/null | tail -1 | cut -d= -f2)
+          [ -n "$t" ] && perplexity_toks_5h=$((perplexity_toks_5h + t))
+          c=$(grep -oE 'citations=[0-9]+' "$f" 2>/dev/null | tail -1 | cut -d= -f2)
+          [ -n "$c" ] && perplexity_cits_5h=$((perplexity_cits_5h + c))
+        fi
+      done
+    fi
+  fi
+  perplexity_dispatch_pct=$(awk "BEGIN{printf \"%d\", ($perplexity_dispatches_5h/$perplexity_cap_5h)*100 + 0.5}")
+  [ "$perplexity_dispatch_pct" -gt 100 ] && perplexity_dispatch_pct=100
+  perplexity_dispatch_bar=$(make_bar "$perplexity_dispatch_pct" 6)
+  perplexity_dispatch_color=$(pct_color "$perplexity_dispatch_pct")
+  if [ "$perplexity_toks_5h" -ge 1000 ]; then
+    perplexity_toks_5h_disp=$(awk "BEGIN{printf \"%.1fk\", $perplexity_toks_5h/1000}")
+  else
+    perplexity_toks_5h_disp="$perplexity_toks_5h"
+  fi
+  perplexity_part="${perplexity_part}${SEP}${perplexity_dispatch_bar} ${perplexity_dispatch_color}${perplexity_dispatches_5h}${RESET}${DIM}/~${perplexity_cap_5h} · ${RESET}${WHITE}${perplexity_toks_5h_disp}${RESET}${DIM} toks · ${RESET}${WHITE}${perplexity_cits_5h}${RESET}${DIM} cites (5h)${RESET}"
+
+  if [ -f "$perplexity_last_json" ]; then
+    perplexity_ts=$(jq -r '.timestamp // empty' "$perplexity_last_json" 2>/dev/null)
+    perplexity_tokens=$(jq -r '.tokens // 0' "$perplexity_last_json" 2>/dev/null)
+    perplexity_elapsed=$(jq -r '.elapsed_s // 0' "$perplexity_last_json" 2>/dev/null)
+    perplexity_status=$(jq -r '.status // "unknown"' "$perplexity_last_json" 2>/dev/null)
+    perplexity_task=$(jq -r '.task_name // empty' "$perplexity_last_json" 2>/dev/null)
+    perplexity_cites=$(jq -r '.citations_count // 0' "$perplexity_last_json" 2>/dev/null)
+
+    if [ -n "$perplexity_ts" ]; then
+      perplexity_ts_sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$perplexity_ts" +%s 2>/dev/null)
+      if [ -n "$perplexity_ts_sec" ]; then
+        perplexity_now_sec=$(date -u +%s)
+        perplexity_age_sec=$((perplexity_now_sec - perplexity_ts_sec))
+        if   [ "$perplexity_age_sec" -lt 60 ];    then perplexity_age_str="${perplexity_age_sec}s ago"
+        elif [ "$perplexity_age_sec" -lt 3600 ];  then perplexity_age_str="$((perplexity_age_sec / 60))m ago"
+        elif [ "$perplexity_age_sec" -lt 86400 ]; then perplexity_age_str="$((perplexity_age_sec / 3600))h ago"
+        else perplexity_age_str="$((perplexity_age_sec / 86400))d ago"
+        fi
+
+        if [ "$perplexity_age_sec" -lt 600 ]; then perplexity_age_color="${CYAN}"
+        else perplexity_age_color="${DIM}"
+        fi
+
+        if [ "$perplexity_tokens" -ge 1000 ]; then
+          perplexity_tok_disp=$(awk "BEGIN{printf \"%.1fk\", $perplexity_tokens/1000}")
+        else
+          perplexity_tok_disp="$perplexity_tokens"
+        fi
+
+        perplexity_tok_color="${WHITE}"
+        [ "$perplexity_status" = "failed" ] && perplexity_tok_color="${RED}"
+
+        perplexity_task_str=""
+        [ -n "$perplexity_task" ] && perplexity_task_str="${WHITE}${perplexity_task}${RESET}${DIM} · ${RESET}"
+
+        perplexity_part="${perplexity_part}${SEP}${DIM}last:${RESET} ${perplexity_task_str}${perplexity_tok_color}${perplexity_tok_disp}${RESET} ${DIM}toks · ${RESET}${WHITE}${perplexity_cites}${RESET}${DIM} cites · ${RESET}${perplexity_age_color}${perplexity_age_str}${RESET}${DIM} · ${perplexity_elapsed}s${RESET}"
+      fi
+    fi
+  else
+    perplexity_part="${perplexity_part}${SEP}${DIM}no dispatches yet${RESET}"
+  fi
+
+  perplexity_line="$perplexity_part"
+fi
+
+[ -n "$perplexity_line" ] && out="${out}\n${perplexity_line}"
 
 printf "%b" "$out"
