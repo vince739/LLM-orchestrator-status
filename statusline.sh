@@ -513,7 +513,9 @@ gemini_line=""
 gemini_last_json="$HOME/.claude/gemini-last.json"
 gemini_creds="$HOME/.gemini/oauth_creds.json"
 
-if command -v gemini >/dev/null 2>&1 && [ -f "$gemini_creds" ]; then
+# Row appears for OAuth users (creds file), API-key users (env var), or anyone
+# with a prior dispatch on record — API-key auth never writes oauth_creds.json.
+if command -v gemini >/dev/null 2>&1 && { [ -f "$gemini_creds" ] || [ -n "${GEMINI_API_KEY:-}" ] || [ -f "$gemini_last_json" ]; }; then
   # Label reflects known Pro-tier configuration — no introspection of actual
   # plan. Edit this literal if you're on the free tier.
   gemini_part="${GEMINI_PURPLE}${BOLD}gemini pro${RESET}"

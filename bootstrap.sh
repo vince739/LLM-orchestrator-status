@@ -83,11 +83,21 @@ for bp in /opt/homebrew/bin/brew /usr/local/bin/brew; do
   [ -x "$bp" ] && eval "$("$bp" shellenv)" && break
 done
 command -v brew >/dev/null 2>&1 || fail "Homebrew install didn't complete. Re-run this script after fixing."
+# Persist it for FUTURE shells too — the Homebrew installer doesn't touch
+# dotfiles, and without this, everything under /opt/homebrew (jq, node, and
+# every npm-installed CLI) is unfindable in the next terminal tab.
+touch "$HOME/.zprofile"
+if ! grep -q 'brew shellenv' "$HOME/.zprofile"; then
+  printf '\neval "$(%s shellenv)"\n' "$(command -v brew)" >> "$HOME/.zprofile"
+  ok "added Homebrew to PATH in ~/.zprofile"
+fi
 
 step "jq + Node.js"
 command -v jq   >/dev/null 2>&1 && ok "jq already installed"   || brew install jq
 command -v node >/dev/null 2>&1 && ok "node already installed" || brew install node
-command -v git  >/dev/null 2>&1 || fail "git not found — run 'xcode-select --install' and re-run."
+# macOS always has a /usr/bin/git shim; probe that it actually runs (it fails
+# until the Xcode Command Line Tools exist — Homebrew installs those above).
+git --version >/dev/null 2>&1 || fail "git not working — run 'xcode-select --install', then re-run."
 
 step "Claude Code"
 if command -v claude >/dev/null 2>&1; then
@@ -108,7 +118,7 @@ else
 fi
 
 step "Installing into ~/.claude"
-( cd "$REPO_DIR" && ./install.sh )
+( cd "$REPO_DIR" && ORCH_BOOTSTRAP=1 ./install.sh )
 
 # ── 3. settings.json merge ───────────────────────────────────────────────────
 step "Wiring statusline + hooks into settings.json"
@@ -156,9 +166,15 @@ else
   fi
   if command -v codex >/dev/null 2>&1; then
     mkdir -p "$HOME/.codex"
-    if [ ! -f "$HOME/.codex/config.toml" ] || ! grep -q '^model *=' "$HOME/.codex/config.toml"; then
-      printf 'model = "gpt-5.5"\n' >> "$HOME/.codex/config.toml"
+    ct="$HOME/.codex/config.toml"
+    if [ ! -f "$ct" ]; then
+      printf 'model = "gpt-5.5"\n' > "$ct"
       ok 'pinned model = "gpt-5.5" in ~/.codex/config.toml (required for ChatGPT-account Codex)'
+    elif ! grep -q '^model *=' "$ct"; then
+      # Top-level keys must precede any [table] — prepend, never append
+      tmp="$(mktemp)"
+      { printf 'model = "gpt-5.5"\n'; cat "$ct"; } > "$tmp" && mv "$tmp" "$ct"
+      ok 'pinned model = "gpt-5.5" at top of ~/.codex/config.toml'
     fi
   fi
 
@@ -179,13 +195,18 @@ else
       # Point the CLI at the API key instead of Google-account OAuth (both are required)
       mkdir -p "$HOME/.gemini"
       gs="$HOME/.gemini/settings.json"
-      [ -f "$gs" ] && jq empty "$gs" 2>/dev/null || echo '{}' > "$gs"
+      if [ -f "$gs" ] && ! jq empty "$gs" 2>/dev/null; then
+        cp "$gs" "$gs.invalid.bak"
+        info "~/.gemini/settings.json was invalid JSON — saved to settings.json.invalid.bak and rebuilt"
+        echo '{}' > "$gs"
+      fi
+      [ -f "$gs" ] || echo '{}' > "$gs"
       tmp="$(mktemp)"
       jq '.security = (.security // {}) | .security.auth = (.security.auth // {}) | .security.auth.selectedType = "gemini-api-key"' \
         "$gs" > "$tmp" && mv "$tmp" "$gs"
       ok "Gemini CLI set to API-key auth"
     else
-      info "no key — add 'export GEMINI_API_KEY=...' to ~/.zshrc later"
+      info "no key — grab one at aistudio.google.com/apikey, then re-run this script to finish the wiring"
     fi
   fi
 
@@ -204,7 +225,8 @@ cat <<'CHECKLIST'
 
   1. Open a NEW terminal tab (so ~/.zshrc changes load).
   2. Run:  claude   — and log in with your Claude account (browser opens).
-     You should see the multi-row status line at the bottom.
+     You should see the status line at the bottom. (Extra Codex / Gemini /
+     Perplexity rows appear once those engines are set up and used.)
   3. If you installed Codex: run  codex  once and log in with your
      ChatGPT account, then quit it.
   4. Nice-to-haves:

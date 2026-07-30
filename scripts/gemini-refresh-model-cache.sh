@@ -32,7 +32,8 @@ fi
 # gemini-2.5-pro with -m, the model will still sometimes claim to be
 # gemini-1.5-pro-001 because of its training.) What matters for the statusline
 # is what we're actually requesting via dispatch.
-GEMINI_DISPATCH_MODEL="${GEMINI_DISPATCH_MODEL:-gemini-3.1-pro-preview}"
+# Fallback must match gemini-dispatch.sh's — a model every tier can use.
+GEMINI_DISPATCH_MODEL="${GEMINI_DISPATCH_MODEL:-gemini-2.5-flash}"
 
 # Verify the model actually works on this account before caching. A quick
 # 1-token probe — 404 means the account doesn't have access.

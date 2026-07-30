@@ -89,10 +89,10 @@ esac
 
 START_EPOCH="$(date +%s)"
 
-# Default to Gemini Pro (gemini-3.1-pro-preview as of this writing). If you're
-# on the free tier and don't have Pro access, override via env var — e.g.
-# export GEMINI_DISPATCH_MODEL=gemini-2.0-flash
-GEMINI_DISPATCH_MODEL="${GEMINI_DISPATCH_MODEL:-gemini-3.1-pro-preview}"
+# Default to a model every tier can use (free API keys 404 on Pro-preview
+# models). Pro-tier users: override via env var — e.g.
+# export GEMINI_DISPATCH_MODEL=gemini-3.1-pro-preview
+GEMINI_DISPATCH_MODEL="${GEMINI_DISPATCH_MODEL:-gemini-2.5-flash}"
 
 gemini --yolo -m "$GEMINI_DISPATCH_MODEL" -p "$PROMPT" 2>&1 \
   | tee -a "$LOG_FILE"

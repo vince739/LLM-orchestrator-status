@@ -182,7 +182,8 @@ case "$MODE" in
   symlink|copy)
     check_deps
     install_files
-    print_settings_hint
+    # bootstrap.sh performs the settings.json merge itself — skip the manual hint
+    [ "${ORCH_BOOTSTRAP:-}" = "1" ] || print_settings_hint
     echo ""
     echo "✅ Install complete."
     ;;
