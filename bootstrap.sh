@@ -34,7 +34,7 @@ fail()  { printf '  \033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 INTERACTIVE=1
 if [ -t 0 ]; then
   PROMPT_SRC=/dev/stdin
-elif [ -e /dev/tty ] && [ -r /dev/tty ]; then
+elif (: < /dev/tty) 2>/dev/null; then
   PROMPT_SRC=/dev/tty
 else
   INTERACTIVE=0
@@ -43,7 +43,7 @@ fi
 ask() { # ask "question" -> echoes answer ("" when non-interactive)
   [ "$INTERACTIVE" -eq 1 ] || { echo ""; return; }
   local ans
-  printf '  %s' "$1" > /dev/tty 2>/dev/null || printf '  %s' "$1"
+  printf '  %s' "$1" > /dev/tty 2>/dev/null || printf '  %s' "$1" >&2
   IFS= read -r ans < "$PROMPT_SRC" || ans=""
   echo "$ans"
 }
