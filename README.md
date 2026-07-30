@@ -35,10 +35,22 @@ The statusline degrades gracefully — if `codex` or `gemini` isn't installed, t
 
 ## Install
 
-Quickest path:
+**Fresh Mac? One command does everything** — installs Homebrew/jq/Node/Claude
+Code if missing, clones this repo, installs it, merges settings.json, and
+walks you through the optional Codex / Gemini / Perplexity wiring:
 
 ```bash
-git clone https://github.com/rhan1/LLM-orchestrator-status.git
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/vince739/LLM-orchestrator-status/main/bootstrap.sh)"
+```
+
+It skips anything already installed, so re-running is safe. When it finishes,
+it prints the short list of things only you can do (logging into your Claude
+and ChatGPT accounts).
+
+**Already have the prerequisites?** Then the classic path:
+
+```bash
+git clone https://github.com/vince739/LLM-orchestrator-status.git
 cd LLM-orchestrator-status
 ./install.sh
 ```
