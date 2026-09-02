@@ -23,7 +23,7 @@ done
 # Count then delete. Patterns scope the deletion to dispatch logs only —
 # no unrelated files get touched.
 COUNT=0
-for pattern in 'codex-*.log' 'gemini-*.log'; do
+for pattern in 'codex-*.log' 'gemini-*.log' 'agy-*.log' 'perplexity-*.log' 'perplexity-*.response.json'; do
   while IFS= read -r f; do
     [ -n "$f" ] && rm -f "$f" && COUNT=$((COUNT + 1))
   done < <(find "$LOG_DIR" -maxdepth 1 -name "$pattern" -mtime "+${DAYS}" -type f 2>/dev/null)

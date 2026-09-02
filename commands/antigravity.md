@@ -16,6 +16,6 @@ For everything else — single-shot research, mechanical code generation, multi-
 
 ## Run
 
-Execute: `~/.antigravity/antigravity/bin/antigravity $ARGUMENTS &`
+Execute: `open -a Antigravity $ARGUMENTS`
 
-This forks the IDE to a new window. Claude Code keeps the foreground and remains usable. The user can switch back when Antigravity finishes (or kill it manually — no integration callback exists).
+Antigravity 2.x is an Electron app with no bundled shell CLI (the old `~/.antigravity/antigravity/bin/antigravity` symlink is dead). `open -a` launches it (pass a folder path to open a workspace). It self-updates on launch; quit the app to let the pending update install. Claude Code keeps the foreground and remains usable. The user can switch back when Antigravity finishes (or kill it manually — no integration callback exists).

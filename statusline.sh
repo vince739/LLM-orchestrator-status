@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Claude Code status line — shows Claude context/rate-limits, Codex, and
-# Gemini dispatch activity on up to three rows. Writes a session-state cache
+# Claude Code status line — shows Claude context/rate-limits, Codex,
+# Antigravity (agy), and Perplexity dispatch activity on up to four rows.
+# Writes a session-state cache
 # to ~/.claude/.session-state.json that the /budget-check and /execute-at-reset
 # slash commands and the auto-budget-check hook read.
 
@@ -32,7 +33,7 @@ RED='\033[38;2;230;90;90m'
 ORANGE='\033[38;2;230;150;60m'
 SILVER='\033[38;2;200;210;220m'
 CODEX_GREEN='\033[38;2;16;163;127m'
-GEMINI_PURPLE='\033[38;2;156;93;247m'
+AGY_PURPLE='\033[38;2;156;93;247m'
 PERPLEXITY_TEAL='\033[38;2;32;178;170m'
 
 SEP="${GRAY} | ${RESET}"
@@ -505,121 +506,126 @@ fi
 
 [ -n "$codex_line" ] && out="${out}\n${codex_line}"
 
-# ── Gemini dispatch line (third row) ─────────────────────────────────────────
-# Mirrors Codex block but uses chars_out instead of tokens (Gemini CLI does not
-# consistently print token counts to stdout on free/OAuth tier). Cap default
-# 100 per 5h — override via GEMINI_DISPATCH_CAP_5H env var.
-gemini_line=""
-gemini_last_json="$HOME/.claude/gemini-last.json"
-gemini_creds="$HOME/.gemini/oauth_creds.json"
+# ── Antigravity dispatch line (third row) ────────────────────────────────────
+# Mirrors Codex block but uses chars_out instead of tokens (agy does not print
+# token counts to stdout in print mode). Cap default 100 per 5h — override via
+# AGY_DISPATCH_CAP_5H env var. agy auths via the Google-account session shared
+# with the Antigravity desktop app (no API key, no API free-tier quota).
+agy_line=""
+agy_last_json="$HOME/.claude/agy-last.json"
 
-# Row appears for OAuth users (creds file), API-key users (env var), or anyone
-# with a prior dispatch on record — API-key auth never writes oauth_creds.json.
-if command -v gemini >/dev/null 2>&1 && { [ -f "$gemini_creds" ] || [ -n "${GEMINI_API_KEY:-}" ] || [ -f "$gemini_last_json" ]; }; then
-  # Label reflects known Pro-tier configuration — no introspection of actual
-  # plan. Edit this literal if you're on the free tier.
-  gemini_part="${GEMINI_PURPLE}${BOLD}gemini pro${RESET}"
+# The installer drops agy in ~/.local/bin, which may be missing from the
+# statusline's non-interactive PATH.
+agy_bin=""
+if command -v agy >/dev/null 2>&1; then
+  agy_bin="agy"
+elif [ -x "$HOME/.local/bin/agy" ]; then
+  agy_bin="$HOME/.local/bin/agy"
+fi
 
-  # Append active model from cache file. The CLI does not print its model to
-  # stdout, so we rely on ~/.claude/gemini-model-cache.txt populated by
-  # ~/.claude/scripts/gemini-refresh-model-cache.sh. Cyan when recent dispatch
-  # (activation indicator), dim otherwise.
-  gemini_model_cache="$HOME/.claude/gemini-model-cache.txt"
-  if [ -f "$gemini_model_cache" ]; then
-    gemini_model=$(head -1 "$gemini_model_cache" | tr -d '[:space:]')
-    # Strip the "gemini-" prefix for display brevity (e.g. "2.0-flash")
-    gemini_model_short="${gemini_model#gemini-}"
-    gemini_model_color="${DIM}"
-    if [ -f "$gemini_last_json" ]; then
-      gt=$(jq -r '.timestamp // empty' "$gemini_last_json" 2>/dev/null)
-      if [ -n "$gt" ]; then
-        gts=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$gt" +%s 2>/dev/null)
-        if [ -n "$gts" ] && [ "$(( $(date -u +%s) - gts ))" -lt 600 ]; then
-          gemini_model_color="${CYAN}"
-        fi
+if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
+  agy_part="${AGY_PURPLE}${BOLD}antigravity${RESET}"
+
+  # Append active model. Prefer the model recorded on the last dispatch
+  # (captures overrides); fall back to the dispatch default. Cyan when a
+  # dispatch ran in the last 10 min (activation indicator), dim otherwise.
+  agy_model=""
+  if [ -f "$agy_last_json" ]; then
+    agy_model=$(jq -r '.model // empty' "$agy_last_json" 2>/dev/null)
+  fi
+  [ -z "$agy_model" ] && agy_model="${AGY_DISPATCH_MODEL:-gemini-3.7-flash-medium}"
+  # Strip the "gemini-" prefix for display brevity (e.g. "3.7-flash-medium")
+  agy_model_short="${agy_model#gemini-}"
+  agy_model_color="${DIM}"
+  if [ -f "$agy_last_json" ]; then
+    at=$(jq -r '.timestamp // empty' "$agy_last_json" 2>/dev/null)
+    if [ -n "$at" ]; then
+      ats=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$at" +%s 2>/dev/null)
+      if [ -n "$ats" ] && [ "$(( $(date -u +%s) - ats ))" -lt 600 ]; then
+        agy_model_color="${CYAN}"
       fi
     fi
-    [ -n "$gemini_model_short" ] && gemini_part="${gemini_part} ${DIM}·${RESET} ${gemini_model_color}${gemini_model_short}${RESET}"
   fi
+  [ -n "$agy_model_short" ] && agy_part="${agy_part} ${DIM}·${RESET} ${agy_model_color}${agy_model_short}${RESET}"
 
   # Dispatches per rolling 5h window
-  gemini_cap_5h="${GEMINI_DISPATCH_CAP_5H:-100}"
-  gemini_dispatches_5h=0
-  gemini_chars_5h=0
+  agy_cap_5h="${AGY_DISPATCH_CAP_5H:-100}"
+  agy_dispatches_5h=0
+  agy_chars_5h=0
   if [ -d "$HOME/.claude/logs" ]; then
-    gemini_cutoff_5h=$(date -u -v-5H +%s 2>/dev/null)
-    if [ -n "$gemini_cutoff_5h" ]; then
-      for f in "$HOME"/.claude/logs/gemini-*.log; do
+    agy_cutoff_5h=$(date -u -v-5H +%s 2>/dev/null)
+    if [ -n "$agy_cutoff_5h" ]; then
+      for f in "$HOME"/.claude/logs/agy-*.log; do
         [ -f "$f" ] || continue
         m=$(stat -f "%m" "$f" 2>/dev/null)
-        if [ -n "$m" ] && [ "$m" -ge "$gemini_cutoff_5h" ]; then
-          gemini_dispatches_5h=$((gemini_dispatches_5h+1))
+        if [ -n "$m" ] && [ "$m" -ge "$agy_cutoff_5h" ]; then
+          agy_dispatches_5h=$((agy_dispatches_5h+1))
           c=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
-          [ -n "$c" ] && gemini_chars_5h=$((gemini_chars_5h + c))
+          [ -n "$c" ] && agy_chars_5h=$((agy_chars_5h + c))
         fi
       done
     fi
   fi
-  gemini_dispatch_pct=$(awk "BEGIN{printf \"%d\", ($gemini_dispatches_5h/$gemini_cap_5h)*100 + 0.5}")
-  [ "$gemini_dispatch_pct" -gt 100 ] && gemini_dispatch_pct=100
-  gemini_dispatch_bar=$(make_bar "$gemini_dispatch_pct" 6)
-  gemini_dispatch_color=$(pct_color "$gemini_dispatch_pct")
-  if [ "$gemini_chars_5h" -ge 1000 ]; then
-    gemini_chars_5h_disp=$(awk "BEGIN{printf \"%.1fk\", $gemini_chars_5h/1000}")
+  agy_dispatch_pct=$(awk "BEGIN{printf \"%d\", ($agy_dispatches_5h/$agy_cap_5h)*100 + 0.5}")
+  [ "$agy_dispatch_pct" -gt 100 ] && agy_dispatch_pct=100
+  agy_dispatch_bar=$(make_bar "$agy_dispatch_pct" 6)
+  agy_dispatch_color=$(pct_color "$agy_dispatch_pct")
+  if [ "$agy_chars_5h" -ge 1000 ]; then
+    agy_chars_5h_disp=$(awk "BEGIN{printf \"%.1fk\", $agy_chars_5h/1000}")
   else
-    gemini_chars_5h_disp="$gemini_chars_5h"
+    agy_chars_5h_disp="$agy_chars_5h"
   fi
-  gemini_part="${gemini_part}${SEP}${gemini_dispatch_bar} ${gemini_dispatch_color}${gemini_dispatches_5h}${RESET}${DIM}/~${gemini_cap_5h} · ${RESET}${WHITE}${gemini_chars_5h_disp}${RESET}${DIM} chars (5h)${RESET}"
+  agy_part="${agy_part}${SEP}${agy_dispatch_bar} ${agy_dispatch_color}${agy_dispatches_5h}${RESET}${DIM}/~${agy_cap_5h} · ${RESET}${WHITE}${agy_chars_5h_disp}${RESET}${DIM} chars (5h)${RESET}"
 
-  if [ -f "$gemini_last_json" ]; then
-    gemini_ts=$(jq -r '.timestamp // empty' "$gemini_last_json" 2>/dev/null)
-    gemini_chars=$(jq -r '.chars_out // 0' "$gemini_last_json" 2>/dev/null)
-    gemini_elapsed=$(jq -r '.elapsed_s // 0' "$gemini_last_json" 2>/dev/null)
-    gemini_status=$(jq -r '.status // "unknown"' "$gemini_last_json" 2>/dev/null)
-    gemini_task=$(jq -r '.task_name // empty' "$gemini_last_json" 2>/dev/null)
+  if [ -f "$agy_last_json" ]; then
+    agy_ts=$(jq -r '.timestamp // empty' "$agy_last_json" 2>/dev/null)
+    agy_chars=$(jq -r '.chars_out // 0' "$agy_last_json" 2>/dev/null)
+    agy_elapsed=$(jq -r '.elapsed_s // 0' "$agy_last_json" 2>/dev/null)
+    agy_status=$(jq -r '.status // "unknown"' "$agy_last_json" 2>/dev/null)
+    agy_task=$(jq -r '.task_name // empty' "$agy_last_json" 2>/dev/null)
 
-    if [ -n "$gemini_ts" ]; then
-      gemini_ts_sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$gemini_ts" +%s 2>/dev/null)
-      if [ -n "$gemini_ts_sec" ]; then
-        gemini_now_sec=$(date -u +%s)
-        gemini_age_sec=$((gemini_now_sec - gemini_ts_sec))
-        if   [ "$gemini_age_sec" -lt 60 ];    then gemini_age_str="${gemini_age_sec}s ago"
-        elif [ "$gemini_age_sec" -lt 3600 ];  then gemini_age_str="$((gemini_age_sec / 60))m ago"
-        elif [ "$gemini_age_sec" -lt 86400 ]; then gemini_age_str="$((gemini_age_sec / 3600))h ago"
-        else gemini_age_str="$((gemini_age_sec / 86400))d ago"
+    if [ -n "$agy_ts" ]; then
+      agy_ts_sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$agy_ts" +%s 2>/dev/null)
+      if [ -n "$agy_ts_sec" ]; then
+        agy_now_sec=$(date -u +%s)
+        agy_age_sec=$((agy_now_sec - agy_ts_sec))
+        if   [ "$agy_age_sec" -lt 60 ];    then agy_age_str="${agy_age_sec}s ago"
+        elif [ "$agy_age_sec" -lt 3600 ];  then agy_age_str="$((agy_age_sec / 60))m ago"
+        elif [ "$agy_age_sec" -lt 86400 ]; then agy_age_str="$((agy_age_sec / 3600))h ago"
+        else agy_age_str="$((agy_age_sec / 86400))d ago"
         fi
 
-        if [ "$gemini_age_sec" -lt 600 ]; then gemini_age_color="${CYAN}"
-        else gemini_age_color="${DIM}"
+        if [ "$agy_age_sec" -lt 600 ]; then agy_age_color="${CYAN}"
+        else agy_age_color="${DIM}"
         fi
 
-        if [ "$gemini_chars" -ge 1000 ]; then
-          gemini_char_disp=$(awk "BEGIN{printf \"%.1fk\", $gemini_chars/1000}")
+        if [ "$agy_chars" -ge 1000 ]; then
+          agy_char_disp=$(awk "BEGIN{printf \"%.1fk\", $agy_chars/1000}")
         else
-          gemini_char_disp="$gemini_chars"
+          agy_char_disp="$agy_chars"
         fi
 
-        gemini_char_color="${WHITE}"
-        [ "$gemini_status" = "failed" ] && gemini_char_color="${RED}"
+        agy_char_color="${WHITE}"
+        [ "$agy_status" = "failed" ] && agy_char_color="${RED}"
 
         # Prefix task name if present.
-        gemini_task_str=""
-        [ -n "$gemini_task" ] && gemini_task_str="${WHITE}${gemini_task}${RESET}${DIM} · ${RESET}"
+        agy_task_str=""
+        [ -n "$agy_task" ] && agy_task_str="${WHITE}${agy_task}${RESET}${DIM} · ${RESET}"
 
-        gemini_part="${gemini_part}${SEP}${DIM}last:${RESET} ${gemini_task_str}${gemini_char_color}${gemini_char_disp}${RESET} ${DIM}chars · ${RESET}${gemini_age_color}${gemini_age_str}${RESET}${DIM} · ${gemini_elapsed}s${RESET}"
+        agy_part="${agy_part}${SEP}${DIM}last:${RESET} ${agy_task_str}${agy_char_color}${agy_char_disp}${RESET} ${DIM}chars · ${RESET}${agy_age_color}${agy_age_str}${RESET}${DIM} · ${agy_elapsed}s${RESET}"
       fi
     fi
   else
-    gemini_part="${gemini_part}${SEP}${DIM}no dispatches yet${RESET}"
+    agy_part="${agy_part}${SEP}${DIM}no dispatches yet${RESET}"
   fi
 
-  gemini_line="$gemini_part"
+  agy_line="$agy_part"
 fi
 
-[ -n "$gemini_line" ] && out="${out}\n${gemini_line}"
+[ -n "$agy_line" ] && out="${out}\n${agy_line}"
 
 # ── Perplexity dispatch line (fourth row) ────────────────────────────────────
-# Mirrors Gemini block. Model varies per call based on prompt prefix
+# Mirrors the dispatch-row blocks above. Model varies per call based on prompt prefix
 # (deep:/reason:/fast:/default), so we read it from last.json rather than a
 # separate cache. Row hidden when neither PERPLEXITY_API_KEY is set nor any
 # prior dispatch exists.

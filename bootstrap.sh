@@ -178,14 +178,27 @@ else
     fi
   fi
 
-  # Gemini
+  # Antigravity CLI (agy) — successor to the Gemini CLI; drives the
+  # antigravity statusline row and /dispatch-agy. Auths via your Google
+  # account session (no API key), which reaches the Gemini 3.x models the
+  # free API tier caps at ~20 requests/day.
+  if command -v agy >/dev/null 2>&1 || [ -x "$HOME/.local/bin/agy" ]; then
+    ok "Antigravity CLI (agy) already installed"
+  elif confirm "Install Antigravity CLI (agy)? Auths with your Google account — no API key needed."; then
+    bash -c "$(curl -fsSL https://antigravity.google/cli/install.sh)"
+    ok "installed — sign in with your Google account on first 'agy' run (see final checklist)"
+  else
+    info "skipped — /dispatch-agy and the antigravity statusline row will stay inactive"
+  fi
+
+  # Gemini CLI (legacy fallback lane — the statusline row now belongs to agy)
   if command -v gemini >/dev/null 2>&1; then
     ok "Gemini CLI already installed"
-  elif confirm "Install Gemini CLI? Needs a free Google AI Studio API key."; then
+  elif confirm "Install legacy Gemini CLI too? Optional fallback; needs a free Google AI Studio API key."; then
     npm install -g @google/gemini-cli
     ok "installed"
   else
-    info "skipped — /dispatch-gemini will stay inactive"
+    info "skipped — /dispatch-gemini (legacy fallback) will stay inactive"
   fi
   if command -v gemini >/dev/null 2>&1; then
     gkey="$(ask "Paste your Gemini API key (from aistudio.google.com/apikey), or Enter to skip: ")"
@@ -225,10 +238,12 @@ cat <<'CHECKLIST'
 
   1. Open a NEW terminal tab (so ~/.zshrc changes load).
   2. Run:  claude   — and log in with your Claude account (browser opens).
-     You should see the status line at the bottom. (Extra Codex / Gemini /
+     You should see the status line at the bottom. (Extra Codex / Antigravity /
      Perplexity rows appear once those engines are set up and used.)
   3. If you installed Codex: run  codex  once and log in with your
      ChatGPT account, then quit it.
+     If you installed Antigravity: run  agy  once and sign in with your
+     Google account, then quit it (Ctrl+C).
   4. Nice-to-haves:
        Warp terminal:  https://www.warp.dev/download
        Wispr Flow (voice dictation):  https://wisprflow.ai/downloads
