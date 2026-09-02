@@ -44,7 +44,7 @@ $ARGUMENTS
    ```
    The wrapper appends `@/path/...` references inline. Stage attachments inside the working directory before dispatch and verify the output actually reflects the file contents — hallucination on unreadable attachments is the known failure mode inherited from the Gemini CLI.
 
-3. **Dispatch** via `~/.claude/scripts/agy-dispatch.sh <spec-path> <short-task-name>`. The wrapper runs `agy --model $AGY_DISPATCH_MODEL -p='...'` (default `gemini-3.7-flash-medium`), captures elapsed time + exit code to `~/.claude/agy-last.json`, and tees the noise-filtered log to `~/.claude/logs/agy-<ts>.log`.
+3. **Dispatch** via `~/.claude/scripts/agy-dispatch.sh <spec-path> <short-task-name>`. The wrapper runs `agy --model $AGY_DISPATCH_MODEL -p='...'` (default `gemini-3.8-flash-medium`), captures elapsed time + exit code to `~/.claude/agy-last.json`, and tees the noise-filtered log to `~/.claude/logs/agy-<ts>.log`.
 
 4. **Smoke-test** the output before claiming success:
    - API handler → mock `req`/`res` Node harness against live data

@@ -95,7 +95,7 @@ esac
 
 # Default: newest flash tier at medium effort. Override via env var — e.g.
 # export AGY_DISPATCH_MODEL=gemini-3.1-pro-high   (heavy reasoning)
-AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-gemini-3.7-flash-medium}"
+AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
 
 {
   echo "── agy-dispatch: $TASK_NAME @ $TS_FILE ──"

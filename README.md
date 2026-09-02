@@ -106,7 +106,7 @@ Environment variables (set in your shell profile):
 |---|---|---|
 | `CODEX_DISPATCH_CAP_5H` | `50` | Messages-per-5h cap used for the Codex usage bar. ChatGPT Plus is typically 20–100 on GPT-5; pick the midpoint or tune to your actual plan. |
 | `AGY_DISPATCH_CAP_5H` | `100` | Same idea for the Antigravity (agy) usage bar. |
-| `AGY_DISPATCH_MODEL` | `gemini-3.7-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-3.1-pro-high` for heavy reasoning runs. |
+| `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-3.1-pro-high` for heavy reasoning runs. |
 | `PERPLEXITY_DISPATCH_CAP_5H` | `100` | Same idea for the Perplexity usage bar. |
 | `GEMINI_DISPATCH_CAP_5H` | `100` | Legacy — cap for the old Gemini CLI lane (no longer on the statusline). |
 | `GEMINI_DISPATCH_MODEL` | `gemini-2.5-flash` | Legacy — model for the old Gemini CLI lane. |
