@@ -427,6 +427,35 @@ if [ -f "$codex_auth_cache" ]; then
       ;;
   esac
 
+  # ── REAL usage: Codex session logs (rollout-*.jsonl) carry rate_limits
+  # snapshots from OpenAI — used_percent, window_minutes, resets_at. This is
+  # the provider's own number (free tier = one rolling 30d window; paid plans
+  # also fill .secondary with the 5h window). Newest snapshot wins; it's only
+  # as fresh as the last codex run, so it renders dim-labeled with the window
+  # length (e.g. "30d:42%").
+  codex_rl_line=""
+  for sf in $(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -5); do
+    codex_rl_line=$(grep '"rate_limits"' "$sf" 2>/dev/null | tail -1)
+    [ -n "$codex_rl_line" ] && break
+  done
+  if [ -n "$codex_rl_line" ]; then
+    for rl_key in primary secondary; do
+      rl_used=$(echo "$codex_rl_line" | jq -r ".payload.rate_limits.${rl_key}.used_percent // empty" 2>/dev/null)
+      [ -n "$rl_used" ] || continue
+      rl_win_min=$(echo "$codex_rl_line" | jq -r ".payload.rate_limits.${rl_key}.window_minutes // 0" 2>/dev/null)
+      rl_resets=$(echo "$codex_rl_line" | jq -r ".payload.rate_limits.${rl_key}.resets_at // empty" 2>/dev/null)
+      rl_used_int=$(printf '%.0f' "$rl_used")
+      rl_bar=$(make_bar "$rl_used_int" 6)
+      rl_color=$(pct_color "$rl_used_int")
+      if [ "$rl_win_min" -ge 1440 ]; then rl_lbl="$((rl_win_min / 1440))d"
+      elif [ "$rl_win_min" -gt 0 ]; then rl_lbl="$((rl_win_min / 60))h"
+      else rl_lbl="win"; fi
+      rl_eta=$(time_until "$rl_resets" $((rl_win_min * 60)))
+      codex_part="${codex_part}${SEP}${rl_bar} ${DIM}${rl_lbl}:${RESET}${rl_color}${rl_used_int}%${RESET}"
+      [ -n "$rl_eta" ] && codex_part="${codex_part} ${DIM}(${rl_eta})${RESET}"
+    done
+  fi
+
   # Dispatches per rolling 5h window (ChatGPT Plus limits usage by messages,
   # not tokens — Plus = 20–100/5h on GPT-5.4. Default cap=50 (midpoint);
   # override via CODEX_DISPATCH_CAP_5H env var.
@@ -456,7 +485,12 @@ if [ -f "$codex_auth_cache" ]; then
   else
     toks_5h_disp="$total_toks_5h"
   fi
-  codex_part="${codex_part}${SEP}${dispatch_bar} ${dispatch_color}${dispatches_5h}${RESET}${DIM}/~${codex_cap_5h} · ${RESET}${WHITE}${toks_5h_disp}${RESET}${DIM} toks (5h)${RESET}"
+  if [ -n "$codex_rl_line" ]; then
+    # Real quota is on the row — the estimated cap bar would just double up.
+    codex_part="${codex_part}${SEP}${WHITE}${dispatches_5h}${RESET}${DIM} sent · ${RESET}${WHITE}${toks_5h_disp}${RESET}${DIM} toks (5h)${RESET}"
+  else
+    codex_part="${codex_part}${SEP}${dispatch_bar} ${dispatch_color}${dispatches_5h}${RESET}${DIM}/~${codex_cap_5h} · ${RESET}${WHITE}${toks_5h_disp}${RESET}${DIM} toks (5h)${RESET}"
+  fi
 
   if [ -f "$codex_last_json" ]; then
     codex_ts=$(jq -r '.timestamp // empty' "$codex_last_json" 2>/dev/null)
