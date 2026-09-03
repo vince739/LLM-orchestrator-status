@@ -29,9 +29,9 @@ Rows 2–4 only render when Codex / agy / Perplexity are set up. First row alway
 **Optional but recommended:**
 - **[Codex CLI](https://github.com/openai/codex)** — `npm install -g @openai/codex` — enables Codex dispatches and the Codex statusline row. Works on a free ChatGPT account (tight caps); Plus/Pro raise limits and unlock more models.
 - **[Antigravity CLI](https://antigravity.google/docs/cli/install/)** — `curl -fsSL https://antigravity.google/cli/install.sh | bash` — installs `agy`, which enables Antigravity dispatches and the agy statusline row. Auths via your Google-account session (sign in once via the Antigravity app or on first `agy` run) — no API key, and it reaches the Gemini 3.x models the free API tier caps at ~20 requests/day.
-- **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** (legacy) — `npm install -g @google/gemini-cli` — the old Gemini lane. `scripts/gemini-dispatch.sh` and `/dispatch-gemini` still work as a fallback, but the statusline row now belongs to agy. Gemini CLI is sunsetting in favor of the Antigravity CLI.
-
 The statusline degrades gracefully — if `codex` or `agy` isn't installed, those rows simply don't render.
+
+> **The old Gemini CLI lane is retired.** Google sunset the Gemini CLI and its free API tier 429s on real workloads. `scripts/gemini-dispatch.sh` now just forwards to `agy-dispatch.sh`, and `/dispatch-gemini` redirects to `/dispatch-agy` — stale callers can't land on the dead lane.
 
 **Platform:** Built on macOS (uses BSD `date -j` syntax and `stat -f "%m"`). Should work on Linux with `date -d` / `stat -c "%Y"` tweaks — PRs welcome.
 
@@ -83,7 +83,7 @@ Once installed and the settings.json snippet is merged, these are available via 
 |---|---|
 | `/dispatch-codex <task>` | Force Codex for mechanical code generation — new API endpoint mirroring an existing file, CRUD scaffold, repetitive component, etc. |
 | `/dispatch-agy <task>` | Force Antigravity (agy) for long-context work (>150k input tokens), multi-modal tasks (images/PDFs), heavy reasoning (`AGY_DISPATCH_MODEL=gemini-3.1-pro-high`), or parallel-batch fan-out |
-| `/dispatch-gemini <task>` | Legacy Gemini CLI lane — kept as a fallback if agy is unavailable |
+| `/dispatch-gemini <task>` | Retired — redirects to `/dispatch-agy` |
 | `/budget-check <plan>` | Pre-flight: does this plan fit in the remaining 5h window? Returns ✅ / ⚠️ / ❌ with concrete options |
 | `/execute-at-reset <plan>` | Schedule a plan to auto-execute ~1 min after the next 5h reset (via Claude Code's `CronCreate`) |
 
@@ -108,8 +108,7 @@ Environment variables (set in your shell profile):
 | `AGY_DISPATCH_CAP_5H` | `100` | Same idea for the Antigravity (agy) usage bar. |
 | `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-3.1-pro-high` for heavy reasoning runs. |
 | `PERPLEXITY_DISPATCH_CAP_5H` | `100` | Same idea for the Perplexity usage bar. |
-| `GEMINI_DISPATCH_CAP_5H` | `100` | Legacy — cap for the old Gemini CLI lane (no longer on the statusline). |
-| `GEMINI_DISPATCH_MODEL` | `gemini-2.5-flash` | Legacy — model for the old Gemini CLI lane. |
+| `AGY_DISPATCH_TIMEOUT` | `15m` | agy's print-mode response window. Research-style dispatches (many web searches) can exceed the CLI's 5m default; raise per-run for very broad tasks (e.g. `30m`). |
 
 To change the statusline colors, the gradient is defined in `pct_color()` near the top — green → yellow → red by default.
 

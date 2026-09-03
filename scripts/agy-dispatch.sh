@@ -97,6 +97,11 @@ esac
 # export AGY_DISPATCH_MODEL=gemini-3.1-pro-high   (heavy reasoning)
 AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
 
+# agy's built-in print-mode timeout defaults to 5m, which agentic research
+# tasks (many web searches) routinely exceed — the run dies with
+# "Error: timeout waiting for response". Default to 15m; override per-run.
+AGY_DISPATCH_TIMEOUT="${AGY_DISPATCH_TIMEOUT:-15m}"
+
 {
   echo "── agy-dispatch: $TASK_NAME @ $TS_FILE ──"
   echo "spec:        $SPEC_FILE"
@@ -109,7 +114,7 @@ START_EPOCH="$(date +%s)"
 
 # grep -v strips agy's glog boilerplate ("ERROR: logging before google.Init")
 # so logs and chars_out reflect real output. PIPESTATUS[0] keeps agy's exit.
-agy --model "$AGY_DISPATCH_MODEL" -p="$PROMPT" 2>&1 \
+agy --model "$AGY_DISPATCH_MODEL" --print-timeout "$AGY_DISPATCH_TIMEOUT" -p="$PROMPT" 2>&1 \
   | grep -v 'logging before google.Init' \
   | tee -a "$LOG_FILE"
 EXIT_CODE="${PIPESTATUS[0]}"

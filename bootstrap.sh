@@ -191,37 +191,8 @@ else
     info "skipped — /dispatch-agy and the antigravity statusline row will stay inactive"
   fi
 
-  # Gemini CLI (legacy fallback lane — the statusline row now belongs to agy)
-  if command -v gemini >/dev/null 2>&1; then
-    ok "Gemini CLI already installed"
-  elif confirm "Install legacy Gemini CLI too? Optional fallback; needs a free Google AI Studio API key."; then
-    npm install -g @google/gemini-cli
-    ok "installed"
-  else
-    info "skipped — /dispatch-gemini (legacy fallback) will stay inactive"
-  fi
-  if command -v gemini >/dev/null 2>&1; then
-    gkey="$(ask "Paste your Gemini API key (from aistudio.google.com/apikey), or Enter to skip: ")"
-    if [ -n "$gkey" ]; then
-      append_zshrc_once "export GEMINI_API_KEY=\"$gkey\"" "GEMINI_API_KEY"
-      append_zshrc_once "export GEMINI_DISPATCH_MODEL=\"gemini-2.5-flash\"" "GEMINI_DISPATCH_MODEL"
-      # Point the CLI at the API key instead of Google-account OAuth (both are required)
-      mkdir -p "$HOME/.gemini"
-      gs="$HOME/.gemini/settings.json"
-      if [ -f "$gs" ] && ! jq empty "$gs" 2>/dev/null; then
-        cp "$gs" "$gs.invalid.bak"
-        info "~/.gemini/settings.json was invalid JSON — saved to settings.json.invalid.bak and rebuilt"
-        echo '{}' > "$gs"
-      fi
-      [ -f "$gs" ] || echo '{}' > "$gs"
-      tmp="$(mktemp)"
-      jq '.security = (.security // {}) | .security.auth = (.security.auth // {}) | .security.auth.selectedType = "gemini-api-key"' \
-        "$gs" > "$tmp" && mv "$tmp" "$gs"
-      ok "Gemini CLI set to API-key auth"
-    else
-      info "no key — grab one at aistudio.google.com/apikey, then re-run this script to finish the wiring"
-    fi
-  fi
+  # (The legacy Gemini CLI lane was retired 2026-09-03 — agy replaces it
+  # entirely, and gemini-dispatch.sh now forwards to agy-dispatch.sh.)
 
   # Perplexity (no CLI — just a key)
   pkey="$(ask "Paste your Perplexity API key (perplexity.ai/settings/api), or Enter to skip: ")"

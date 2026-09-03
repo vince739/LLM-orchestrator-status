@@ -4,7 +4,7 @@
 // Weekly maintenance (SessionStart hook)
 // Runs lightweight housekeeping tasks on a 7-day cadence:
 //   1. Rotate dispatch logs older than 30 days (prevents ~/.claude/logs/ growth)
-//   2. Refresh the Gemini model cache (catches preview model rotations early)
+//   (the old Gemini model-cache refresh was retired 2026-09-03 with the lane)
 //
 // All tasks fire in the background (`child.unref()`) so session startup is
 // never blocked. A marker file records the last run; if <7 days old, the
@@ -49,7 +49,6 @@ function main() {
   process.stdin.on('end', () => {
     if (isStale()) {
       fireBackground(path.join(HOME, '.claude/scripts/rotate-logs.sh'), ['--quiet']);
-      fireBackground(path.join(HOME, '.claude/scripts/gemini-refresh-model-cache.sh'), ['--quiet']);
       // Touch marker. Do this synchronously so subsequent starts within the
       // same session reflect that we kicked off maintenance.
       try { fs.writeFileSync(MARKER, new Date().toISOString() + '\n'); } catch {}

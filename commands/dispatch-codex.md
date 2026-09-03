@@ -26,6 +26,6 @@ $ARGUMENTS
    - UI component → dev server + browser/curl verification
    - Script → run against real input
 
-5. **Fix small bugs directly** (< 10 lines). Re-dispatch only if the change is substantial. If Codex fails or rate-limits, fall back to `/dispatch-gemini` or `gemini --yolo -p "$(cat spec)"`.
+5. **Fix small bugs directly** (< 10 lines). Re-dispatch only if the change is substantial. If Codex fails or rate-limits, fall back to `/dispatch-agy`.
 
 6. **Report**: what shipped, which bugs the smoke test caught, tokens used, wall-clock time, integration status.

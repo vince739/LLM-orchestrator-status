@@ -12,7 +12,7 @@ Antigravity is most useful for:
 - Tasks where the agent benefits from controlling the browser (UI testing, scraping flows, OAuth dances).
 - Sessions you want to leave running while you do other work in Claude Code.
 
-For everything else — single-shot research, mechanical code generation, multi-modal analysis — the existing dispatch system (`/dispatch-codex`, `/dispatch-gemini`, `/dispatch-perplexity`) is faster and cheaper. Antigravity is built on Gemini 3 under the hood, so for headless Gemini calls, use `/dispatch-gemini` instead.
+For everything else — single-shot research, mechanical code generation, multi-modal analysis — the existing dispatch system (`/dispatch-codex`, `/dispatch-agy`, `/dispatch-perplexity`) is faster and cheaper. Antigravity is built on Gemini under the hood, so for headless Gemini calls, use `/dispatch-agy` (the `agy` CLI) instead.
 
 ## Run
 

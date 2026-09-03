@@ -18,7 +18,7 @@ Auth is the existing ChatGPT-account OAuth in `~/.codex/auth.json` (same as `/di
 
 - **Coding / codegen** still goes to `/dispatch-codex` (agentic, can edit files).
 - **Citation-heavy research** still favors `/dispatch-perplexity` — Sonar bakes in citations; ChatGPT's web search doesn't cite as rigorously.
-- **Long-context / multi-modal** still favors `/dispatch-gemini`.
+- **Long-context / multi-modal** still favors `/dispatch-agy`.
 - This dispatch is for: ChatGPT-flavored reasoning, drafting, analysis, brainstorming, or when the user explicitly asks "what does ChatGPT think".
 
 ## Task
