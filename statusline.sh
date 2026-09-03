@@ -582,8 +582,9 @@ if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
   fi
   [ -n "$agy_model_short" ] && agy_part="${agy_part} ${DIM}·${RESET} ${agy_model_color}${agy_model_short}${RESET}"
 
-  # Dispatches per rolling 5h window
-  agy_cap_5h="${AGY_DISPATCH_CAP_5H:-100}"
+  # Local activity in the rolling 5h window. Antigravity exposes no real
+  # quota anywhere the CLI can read, so this is a plain activity count —
+  # deliberately NOT a bar against a guessed cap.
   agy_dispatches_5h=0
   agy_chars_5h=0
   if [ -d "$HOME/.claude/logs" ]; then
@@ -600,16 +601,12 @@ if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
       done
     fi
   fi
-  agy_dispatch_pct=$(awk "BEGIN{printf \"%d\", ($agy_dispatches_5h/$agy_cap_5h)*100 + 0.5}")
-  [ "$agy_dispatch_pct" -gt 100 ] && agy_dispatch_pct=100
-  agy_dispatch_bar=$(make_bar "$agy_dispatch_pct" 6)
-  agy_dispatch_color=$(pct_color "$agy_dispatch_pct")
   if [ "$agy_chars_5h" -ge 1000 ]; then
     agy_chars_5h_disp=$(awk "BEGIN{printf \"%.1fk\", $agy_chars_5h/1000}")
   else
     agy_chars_5h_disp="$agy_chars_5h"
   fi
-  agy_part="${agy_part}${SEP}${agy_dispatch_bar} ${agy_dispatch_color}${agy_dispatches_5h}${RESET}${DIM}/~${agy_cap_5h} · ${RESET}${WHITE}${agy_chars_5h_disp}${RESET}${DIM} chars (5h)${RESET}"
+  agy_part="${agy_part}${SEP}${WHITE}${agy_dispatches_5h}${RESET}${DIM} sent · ${RESET}${WHITE}${agy_chars_5h_disp}${RESET}${DIM} chars (5h)${RESET}"
 
   if [ -f "$agy_last_json" ]; then
     agy_ts=$(jq -r '.timestamp // empty' "$agy_last_json" 2>/dev/null)
@@ -686,37 +683,43 @@ if [ -n "${PERPLEXITY_API_KEY:-}" ] || [ -f "$perplexity_last_json" ]; then
     fi
   fi
 
-  perplexity_cap_5h="${PERPLEXITY_DISPATCH_CAP_5H:-100}"
+  # ── REAL money: account balance + rolling-5h spend. Perplexity has no
+  # balance endpoint, but every API response reports its exact cost
+  # (usage.cost.total_cost). perplexity-dispatch.sh subtracts each call from
+  # ~/.claude/perplexity-balance.json (seed/sync: perplexity-set-balance.sh
+  # with the number from perplexity.ai/settings/api). 5h spend is summed
+  # from the saved response JSONs. Green >$2, yellow $1–2, red <$1 ($2 is
+  # Perplexity's own auto-top-up threshold).
+  perplexity_balance_json="$HOME/.claude/perplexity-balance.json"
+  if [ -f "$perplexity_balance_json" ]; then
+    pbal=$(jq -r '.balance_usd // empty' "$perplexity_balance_json" 2>/dev/null)
+    if [ -n "$pbal" ]; then
+      pbal_disp=$(awk "BEGIN{printf \"%.2f\", $pbal}")
+      pbal_color="${GREEN}"
+      awk "BEGIN{exit !($pbal < 2)}" && pbal_color="${YELLOW}"
+      awk "BEGIN{exit !($pbal < 1)}" && pbal_color="${RED}${BOLD}"
+      perplexity_part="${perplexity_part}${SEP}${DIM}bal:${RESET}${pbal_color}\$${pbal_disp}${RESET}"
+    fi
+  fi
+
   perplexity_dispatches_5h=0
-  perplexity_toks_5h=0
-  perplexity_cits_5h=0
+  perplexity_cost_5h=0
   if [ -d "$HOME/.claude/logs" ]; then
     perplexity_cutoff_5h=$(date -u -v-5H +%s 2>/dev/null)
     if [ -n "$perplexity_cutoff_5h" ]; then
-      for f in "$HOME"/.claude/logs/perplexity-*.log; do
+      for f in "$HOME"/.claude/logs/perplexity-*.response.json; do
         [ -f "$f" ] || continue
-        case "$f" in *.response.json) continue ;; esac
         m=$(stat -f "%m" "$f" 2>/dev/null)
         if [ -n "$m" ] && [ "$m" -ge "$perplexity_cutoff_5h" ]; then
           perplexity_dispatches_5h=$((perplexity_dispatches_5h+1))
-          t=$(grep -oE 'tokens=[0-9]+' "$f" 2>/dev/null | tail -1 | cut -d= -f2)
-          [ -n "$t" ] && perplexity_toks_5h=$((perplexity_toks_5h + t))
-          c=$(grep -oE 'citations=[0-9]+' "$f" 2>/dev/null | tail -1 | cut -d= -f2)
-          [ -n "$c" ] && perplexity_cits_5h=$((perplexity_cits_5h + c))
+          cc=$(jq -r '.usage.cost.total_cost // 0' "$f" 2>/dev/null)
+          [ -n "$cc" ] && perplexity_cost_5h=$(awk "BEGIN{printf \"%.5f\", $perplexity_cost_5h + $cc}")
         fi
       done
     fi
   fi
-  perplexity_dispatch_pct=$(awk "BEGIN{printf \"%d\", ($perplexity_dispatches_5h/$perplexity_cap_5h)*100 + 0.5}")
-  [ "$perplexity_dispatch_pct" -gt 100 ] && perplexity_dispatch_pct=100
-  perplexity_dispatch_bar=$(make_bar "$perplexity_dispatch_pct" 6)
-  perplexity_dispatch_color=$(pct_color "$perplexity_dispatch_pct")
-  if [ "$perplexity_toks_5h" -ge 1000 ]; then
-    perplexity_toks_5h_disp=$(awk "BEGIN{printf \"%.1fk\", $perplexity_toks_5h/1000}")
-  else
-    perplexity_toks_5h_disp="$perplexity_toks_5h"
-  fi
-  perplexity_part="${perplexity_part}${SEP}${perplexity_dispatch_bar} ${perplexity_dispatch_color}${perplexity_dispatches_5h}${RESET}${DIM}/~${perplexity_cap_5h} · ${RESET}${WHITE}${perplexity_toks_5h_disp}${RESET}${DIM} toks · ${RESET}${WHITE}${perplexity_cits_5h}${RESET}${DIM} cites (5h)${RESET}"
+  perplexity_cost_5h_disp=$(awk "BEGIN{printf \"%.2f\", $perplexity_cost_5h}")
+  perplexity_part="${perplexity_part}${SEP}${WHITE}${perplexity_dispatches_5h}${RESET}${DIM} sent · ${RESET}${WHITE}\$${perplexity_cost_5h_disp}${RESET}${DIM} (5h)${RESET}"
 
   if [ -f "$perplexity_last_json" ]; then
     perplexity_ts=$(jq -r '.timestamp // empty' "$perplexity_last_json" 2>/dev/null)
@@ -725,6 +728,7 @@ if [ -n "${PERPLEXITY_API_KEY:-}" ] || [ -f "$perplexity_last_json" ]; then
     perplexity_status=$(jq -r '.status // "unknown"' "$perplexity_last_json" 2>/dev/null)
     perplexity_task=$(jq -r '.task_name // empty' "$perplexity_last_json" 2>/dev/null)
     perplexity_cites=$(jq -r '.citations_count // 0' "$perplexity_last_json" 2>/dev/null)
+    perplexity_last_cost=$(jq -r '.cost_usd // empty' "$perplexity_last_json" 2>/dev/null)
 
     if [ -n "$perplexity_ts" ]; then
       perplexity_ts_sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$perplexity_ts" +%s 2>/dev/null)
@@ -753,7 +757,11 @@ if [ -n "${PERPLEXITY_API_KEY:-}" ] || [ -f "$perplexity_last_json" ]; then
         perplexity_task_str=""
         [ -n "$perplexity_task" ] && perplexity_task_str="${WHITE}${perplexity_task}${RESET}${DIM} · ${RESET}"
 
-        perplexity_part="${perplexity_part}${SEP}${DIM}last:${RESET} ${perplexity_task_str}${perplexity_tok_color}${perplexity_tok_disp}${RESET} ${DIM}toks · ${RESET}${WHITE}${perplexity_cites}${RESET}${DIM} cites · ${RESET}${perplexity_age_color}${perplexity_age_str}${RESET}${DIM} · ${perplexity_elapsed}s${RESET}"
+        perplexity_cost_str=""
+        if [ -n "$perplexity_last_cost" ]; then
+          perplexity_cost_str="${WHITE}\$$(awk "BEGIN{printf \"%.2f\", $perplexity_last_cost}")${RESET}${DIM} · ${RESET}"
+        fi
+        perplexity_part="${perplexity_part}${SEP}${DIM}last:${RESET} ${perplexity_task_str}${perplexity_cost_str}${perplexity_tok_color}${perplexity_tok_disp}${RESET} ${DIM}toks · ${RESET}${WHITE}${perplexity_cites}${RESET}${DIM} cites · ${RESET}${perplexity_age_color}${perplexity_age_str}${RESET}${DIM} · ${perplexity_elapsed}s${RESET}"
       fi
     fi
   else

@@ -137,6 +137,7 @@ except Exception:
     sys.exit(0)
 usage = doc.get("usage") or {}
 tokens = int(usage.get("total_tokens") or 0)
+cost = float(((usage.get("cost") or {}).get("total_cost")) or 0.0)
 content = ""
 choices = doc.get("choices") or []
 if choices:
@@ -148,6 +149,7 @@ if cit is None:
 cit_count = len(cit) if isinstance(cit, list) else 0
 print(json.dumps({
     "tokens": tokens,
+    "cost_usd": cost,
     "chars_out": len(content),
     "citations_count": cit_count,
     "content": content,
@@ -156,6 +158,7 @@ PY
 )"
 
 TOKENS="$(echo "$PARSED" | python3 -c 'import sys,json; print(json.load(sys.stdin)["tokens"])' 2>/dev/null || echo 0)"
+COST_USD="$(echo "$PARSED" | python3 -c 'import sys,json; print(json.load(sys.stdin)["cost_usd"])' 2>/dev/null || echo 0)"
 CHARS_OUT="$(echo "$PARSED" | python3 -c 'import sys,json; print(json.load(sys.stdin)["chars_out"])' 2>/dev/null || echo 0)"
 CITATIONS_COUNT="$(echo "$PARSED" | python3 -c 'import sys,json; print(json.load(sys.stdin)["citations_count"])' 2>/dev/null || echo 0)"
 CONTENT="$(echo "$PARSED" | python3 -c 'import sys,json; print(json.load(sys.stdin)["content"])' 2>/dev/null || echo "")"
@@ -168,7 +171,7 @@ fi
 TASK_NAME="$TASK_NAME" MODEL="$MODEL" TOKENS="$TOKENS" ELAPSED="$ELAPSED" \
 STATUS="$STATUS" EXIT_CODE="$EXIT_CODE" SPEC_FILE="$SPEC_FILE" \
 LOG_FILE="$LOG_FILE" CHARS_OUT="$CHARS_OUT" CITATIONS_COUNT="$CITATIONS_COUNT" \
-HTTP_CODE="$HTTP_CODE" \
+HTTP_CODE="$HTTP_CODE" COST_USD="$COST_USD" \
 python3 - > "$LAST_JSON" <<'PY'
 import json, os
 from datetime import datetime, timezone
@@ -177,6 +180,7 @@ print(json.dumps({
   "task_name":       os.environ.get("TASK_NAME", ""),
   "model":           os.environ.get("MODEL", "unknown"),
   "tokens":          int(os.environ.get("TOKENS") or 0),
+  "cost_usd":        float(os.environ.get("COST_USD") or 0),
   "elapsed_s":       int(os.environ.get("ELAPSED") or 0),
   "status":          os.environ.get("STATUS", "unknown"),
   "exit_code":       int(os.environ.get("EXIT_CODE") or 0),
@@ -188,9 +192,34 @@ print(json.dumps({
 }, indent=2))
 PY
 
+# ── Balance tracking: the API reports each call's exact cost
+# (usage.cost.total_cost) but offers no balance endpoint, so we keep a local
+# running balance. Seed/sync it with perplexity-set-balance.sh <amount>
+# (copy the number from perplexity.ai/settings/api); every successful
+# dispatch then subtracts its real cost.
+BALANCE_JSON="$CLAUDE_DIR/perplexity-balance.json"
+if [ "$STATUS" = "success" ] && [ -f "$BALANCE_JSON" ]; then
+  BALANCE_JSON="$BALANCE_JSON" COST_USD="$COST_USD" python3 - <<'PY'
+import json, os
+from datetime import datetime, timezone
+p = os.environ["BALANCE_JSON"]
+try:
+    with open(p) as f:
+        doc = json.load(f)
+except Exception:
+    doc = {}
+cost = float(os.environ.get("COST_USD") or 0)
+doc["balance_usd"] = round(float(doc.get("balance_usd") or 0) - cost, 5)
+doc["spent_since_sync"] = round(float(doc.get("spent_since_sync") or 0) + cost, 5)
+doc["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+with open(p, "w") as f:
+    json.dump(doc, f, indent=2)
+PY
+fi
+
 {
   echo ""
-  echo "── perplexity-dispatch done: status=$STATUS model=$MODEL tokens=$TOKENS citations=$CITATIONS_COUNT elapsed=${ELAPSED}s ──"
+  echo "── perplexity-dispatch done: status=$STATUS model=$MODEL tokens=$TOKENS citations=$CITATIONS_COUNT cost=\$$COST_USD elapsed=${ELAPSED}s ──"
   echo "log:     $LOG_FILE"
   echo "summary: $LAST_JSON"
 } | tee -a "$LOG_FILE"

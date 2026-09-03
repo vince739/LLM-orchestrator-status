@@ -105,12 +105,16 @@ Environment variables (set in your shell profile):
 | Var | Default | Purpose |
 |---|---|---|
 | `CODEX_DISPATCH_CAP_5H` | `50` | Messages-per-5h cap used for the Codex usage bar. ChatGPT Plus is typically 20–100 on GPT-5; pick the midpoint or tune to your actual plan. |
-| `AGY_DISPATCH_CAP_5H` | `100` | Same idea for the Antigravity (agy) usage bar. |
 | `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-3.1-pro-high` for heavy reasoning runs. |
-| `PERPLEXITY_DISPATCH_CAP_5H` | `100` | Same idea for the Perplexity usage bar. |
 | `AGY_DISPATCH_TIMEOUT` | `15m` | agy's print-mode response window. Research-style dispatches (many web searches) can exceed the CLI's 5m default; raise per-run for very broad tasks (e.g. `30m`). |
 
 To change the statusline colors, the gradient is defined in `pct_color()` near the top — green → yellow → red by default.
+
+### What the engine rows show
+
+- **codex** — REAL quota when available: the CLI's session logs carry OpenAI's own `used_percent` per window (free tier = one rolling 30-day window, e.g. `30d:42%`; paid plans also report the 5h window). Fresh as of the last codex run. Falls back to a `N/~cap` estimate bar (`CODEX_DISPATCH_CAP_5H`) if no snapshot exists yet.
+- **antigravity** — plain activity count (`N sent · chars (5h)`). Google exposes no real quota to the CLI, so no bar is drawn — a bar against a guessed cap would be theater.
+- **perplexity** — REAL money. Every API response reports its exact cost; the row shows your remaining balance (`bal:$4.99`, green > $2, yellow $1–2, red < $1) plus actual dollars spent in the rolling 5h. Seed the balance once with `~/.claude/scripts/perplexity-set-balance.sh <amount>` using the number from perplexity.ai/settings/api; every dispatch then subtracts its true cost. Re-run after topping up.
 
 ## Architecture
 

@@ -40,6 +40,7 @@ FILES=(
   "scripts/gemini-refresh-model-cache.sh:scripts/gemini-refresh-model-cache.sh"
   "scripts/agy-dispatch.sh:scripts/agy-dispatch.sh"
   "scripts/perplexity-dispatch.sh:scripts/perplexity-dispatch.sh"
+  "scripts/perplexity-set-balance.sh:scripts/perplexity-set-balance.sh"
   "scripts/chatgpt-dispatch.sh:scripts/chatgpt-dispatch.sh"
   "scripts/rotate-logs.sh:scripts/rotate-logs.sh"
   "commands/dispatch-codex.md:commands/dispatch-codex.md"
