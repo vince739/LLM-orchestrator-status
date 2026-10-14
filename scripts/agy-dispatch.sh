@@ -154,4 +154,9 @@ PY
   echo "summary: $LAST_JSON"
 } | tee -a "$LOG_FILE"
 
+# Refresh the quota cache the statusline reads; it also scans this run's log
+# for a 429 so an exhausted bucket shows as 100% immediately.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/agy-quota-refresh.sh" ] && ( nohup bash "$SCRIPT_DIR/agy-quota-refresh.sh" </dev/null >/dev/null 2>&1 & )
+
 exit "$EXIT_CODE"

@@ -162,6 +162,34 @@ reset_clock() {
   date -j -f "%s" "$target_sec" "+%H:%M" 2>/dev/null
 }
 
+# spawn_refresh <script> <cache-file> <max-age-sec> — run a quota refresher
+# detached when its cache is missing or older than max-age-sec. A lock file
+# (honored for 120s) and the refresher's own .err file (honored for max-age)
+# keep the 10-second statusline cadence from piling up or hammering a failing
+# endpoint. stdio is fully redirected so Claude Code's read of this script's
+# stdout never waits on the child.
+spawn_refresh() {
+  local script=$1 cache=$2 max_age=$3
+  [ -f "$script" ] || return
+  local now m
+  now=$(date -u +%s)
+  if [ -f "$cache" ]; then
+    m=$(stat -f "%m" "$cache" 2>/dev/null || echo 0)
+    [ $((now - m)) -lt "$max_age" ] && return
+  fi
+  if [ -f "${cache}.err" ]; then
+    m=$(stat -f "%m" "${cache}.err" 2>/dev/null || echo 0)
+    [ $((now - m)) -lt "$max_age" ] && return
+  fi
+  local lock="${cache}.refreshing"
+  if [ -f "$lock" ]; then
+    m=$(stat -f "%m" "$lock" 2>/dev/null || echo 0)
+    [ $((now - m)) -lt 120 ] && return
+  fi
+  touch "$lock"
+  ( nohup bash -c "bash \"$script\"; rm -f \"$lock\"" </dev/null >/dev/null 2>&1 & )
+}
+
 # ── Model ─────────────────────────────────────────────────────────────────────
 model_name=$(echo "$input" | jq -r '.model.display_name // "Unknown"')
 model_part="${ORANGE}${BOLD}${model_name}${RESET}"
@@ -427,17 +455,37 @@ if [ -f "$codex_auth_cache" ]; then
       ;;
   esac
 
-  # ── REAL usage: Codex session logs (rollout-*.jsonl) carry rate_limits
-  # snapshots from OpenAI — used_percent, window_minutes, resets_at. This is
-  # the provider's own number (free tier = one rolling 30d window; paid plans
-  # also fill .secondary with the 5h window). Newest snapshot wins; it's only
-  # as fresh as the last codex run, so it renders dim-labeled with the window
-  # length (e.g. "30d:42%").
+  # ── REAL usage, two sources:
+  #  1. LIVE: ~/.claude/codex-quota.json — the ChatGPT usage endpoint, fetched
+  #     by scripts/codex-quota-refresh.sh with the OAuth token Codex stores in
+  #     ~/.codex/auth.json (same call the Codex TUI's /status makes; spends no
+  #     tokens). Refreshed detached when older than CODEX_QUOTA_REFRESH_SEC
+  #     (default 300s) and eagerly after every dispatch.
+  #  2. FALLBACK: the newest rate_limits snapshot in Codex's own session logs
+  #     (rollout-*.jsonl) — OpenAI's number as of the last codex run, so it can
+  #     be hours stale; rendered with a dim "snap" tag.
+  # Both carry used_percent / window_minutes / resets_at per window (free tier
+  # = one rolling 30d window; paid plans = 5h primary + 7d secondary).
+  codex_quota_json="$HOME/.claude/codex-quota.json"
+  spawn_refresh "$HOME/.claude/scripts/codex-quota-refresh.sh" "$codex_quota_json" "${CODEX_QUOTA_REFRESH_SEC:-300}"
   codex_rl_line=""
-  for sf in $(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -5); do
-    codex_rl_line=$(grep '"rate_limits"' "$sf" 2>/dev/null | tail -1)
-    [ -n "$codex_rl_line" ] && break
-  done
+  codex_rl_src=""
+  codex_rl_fetched=""
+  if [ -f "$codex_quota_json" ]; then
+    codex_rl_line=$(jq -c '{payload:{rate_limits:{primary:.primary,secondary:.secondary,limit_reached:.limit_reached}}}' "$codex_quota_json" 2>/dev/null)
+    if [ -n "$codex_rl_line" ] && [ "$codex_rl_line" != "null" ]; then
+      codex_rl_src="live"
+      codex_rl_fetched=$(jq -r '.fetched_at // empty' "$codex_quota_json" 2>/dev/null)
+    else
+      codex_rl_line=""
+    fi
+  fi
+  if [ -z "$codex_rl_line" ]; then
+    for sf in $(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -5); do
+      codex_rl_line=$(grep '"rate_limits"' "$sf" 2>/dev/null | tail -1)
+      [ -n "$codex_rl_line" ] && { codex_rl_src="snap"; break; }
+    done
+  fi
   if [ -n "$codex_rl_line" ]; then
     for rl_key in primary secondary; do
       rl_used=$(echo "$codex_rl_line" | jq -r ".payload.rate_limits.${rl_key}.used_percent // empty" 2>/dev/null)
@@ -450,10 +498,25 @@ if [ -f "$codex_auth_cache" ]; then
       if [ "$rl_win_min" -ge 1440 ]; then rl_lbl="$((rl_win_min / 1440))d"
       elif [ "$rl_win_min" -gt 0 ]; then rl_lbl="$((rl_win_min / 60))h"
       else rl_lbl="win"; fi
-      rl_eta=$(time_until "$rl_resets" $((rl_win_min * 60)))
       codex_part="${codex_part}${SEP}${rl_bar} ${DIM}${rl_lbl}:${RESET}${rl_color}${rl_used_int}%${RESET}"
-      [ -n "$rl_eta" ] && codex_part="${codex_part} ${DIM}(${rl_eta})${RESET}"
+      # An untouched window "resets" in exactly its own length — noise; skip.
+      if [ "$rl_used_int" -gt 0 ]; then
+        rl_eta=$(time_until "$rl_resets" $((rl_win_min * 60)))
+        [ -n "$rl_eta" ] && codex_part="${codex_part} ${DIM}(${rl_eta})${RESET}"
+      fi
     done
+    rl_limit=$(echo "$codex_rl_line" | jq -r '.payload.rate_limits.limit_reached // false' 2>/dev/null)
+    [ "$rl_limit" = "true" ] && codex_part="${codex_part} ${RED}${BOLD}✗ limit reached${RESET}"
+    # Freshness tag: live data older than 30 min, or a session-log snapshot.
+    if [ "$codex_rl_src" = "live" ] && [ -n "$codex_rl_fetched" ]; then
+      rl_age=$(( $(date -u +%s) - codex_rl_fetched ))
+      if [ "$rl_age" -ge 1800 ]; then
+        if [ "$rl_age" -ge 3600 ]; then rl_age_str="$((rl_age / 3600))h"; else rl_age_str="$((rl_age / 60))m"; fi
+        codex_part="${codex_part} ${DIM}·${rl_age_str} old${RESET}"
+      fi
+    elif [ "$codex_rl_src" = "snap" ]; then
+      codex_part="${codex_part} ${DIM}·snap${RESET}"
+    fi
   fi
 
   # Dispatches per rolling 5h window (ChatGPT Plus limits usage by messages,
@@ -582,9 +645,41 @@ if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
   fi
   [ -n "$agy_model_short" ] && agy_part="${agy_part} ${DIM}·${RESET} ${agy_model_color}${agy_model_short}${RESET}"
 
-  # Local activity in the rolling 5h window. Antigravity exposes no real
-  # quota anywhere the CLI can read, so this is a plain activity count —
-  # deliberately NOT a bar against a guessed cap.
+  # ── REAL quota: ~/.claude/agy-quota.json, written by
+  # scripts/agy-quota-refresh.sh from `agy -p='/usage'` (read-only, no tokens).
+  # Two groups, "gemini" (Flash + Pro) and "claude/gpt", each with a weekly
+  # bucket (free tier) plus a 5h bucket on Pro/Ultra, shown like Codex. Google's
+  # figure lags hours behind real use, so the refresher also scans recent
+  # dispatch logs for a 429 "Individual quota reached" and pins that bucket to
+  # 100% used (tagged ✗429) until the reset the error named. Refreshed detached
+  # when older than AGY_QUOTA_REFRESH_SEC (default 900s) and after every dispatch.
+  agy_quota_json="$HOME/.claude/agy-quota.json"
+  spawn_refresh "$HOME/.claude/scripts/agy-quota-refresh.sh" "$agy_quota_json" "${AGY_QUOTA_REFRESH_SEC:-900}"
+  agy_has_quota=0
+  if [ -f "$agy_quota_json" ]; then
+    while IFS=$'\t' read -r q_short q_win q_used q_reset q_override; do
+      [ -n "$q_short" ] && [ -n "$q_used" ] || continue
+      q_used_int=$(printf '%.0f' "$q_used")
+      q_bar=$(make_bar "$q_used_int" 6)
+      q_color=$(pct_color "$q_used_int")
+      agy_part="${agy_part}${SEP}${q_bar} ${DIM}${q_short} ${q_win}:${RESET}${q_color}${q_used_int}%${RESET}"
+      # An untouched window "resets" in exactly its own length — noise; skip.
+      if [ "$q_used_int" -gt 0 ]; then
+        q_eta=$(time_until "$q_reset")
+        [ -n "$q_eta" ] && agy_part="${agy_part} ${DIM}(${q_eta})${RESET}"
+      fi
+      [ "$q_override" = "429" ] && agy_part="${agy_part} ${RED}✗429${RESET}"
+      agy_has_quota=1
+    done < <(jq -r '.groups[]? | [.short, (.win // "7d"), (.used_percent // ""), (.reset_epoch // ""), (.override // "")] | @tsv' "$agy_quota_json" 2>/dev/null)
+    agy_q_fetched=$(jq -r '.fetched_at // empty' "$agy_quota_json" 2>/dev/null)
+    if [ "$agy_has_quota" -eq 1 ] && [ -n "$agy_q_fetched" ]; then
+      agy_q_age=$(( $(date -u +%s) - agy_q_fetched ))
+      [ "$agy_q_age" -ge 3600 ] && agy_part="${agy_part} ${DIM}·$((agy_q_age / 3600))h old${RESET}"
+    fi
+  fi
+  [ "$agy_has_quota" -eq 0 ] && agy_part="${agy_part}${SEP}${DIM}quota: fetching…${RESET}"
+
+  # Local activity in the rolling 5h window (dispatch count + output volume).
   agy_dispatches_5h=0
   agy_chars_5h=0
   if [ -d "$HOME/.claude/logs" ]; then

@@ -136,4 +136,7 @@ PY
   echo "summary: $LAST_JSON"
 } | tee -a "$LOG_FILE"
 
+# Refresh the live quota cache the statusline's Codex row reads.
+[ -f "$SCRIPT_DIR/codex-quota-refresh.sh" ] && ( nohup bash "$SCRIPT_DIR/codex-quota-refresh.sh" </dev/null >/dev/null 2>&1 & )
+
 exit "$EXIT_CODE"
