@@ -421,9 +421,17 @@ if [ -f "$codex_auth_cache" ]; then
 
       # Append active model. Prefer the model recorded on the last dispatch
       # (captures overrides); fall back to config.toml default.
+      # Last-dispatch model only while that run is fresh (<10 min); otherwise
+      # the config.toml default, so a days-old override never masquerades as current.
       codex_model=""
+      codex_recent=0
       if [ -f "$codex_last_json" ]; then
-        codex_model=$(jq -r '.model // empty' "$codex_last_json" 2>/dev/null)
+        ct0=$(jq -r '.timestamp // empty' "$codex_last_json" 2>/dev/null)
+        cts0=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$ct0" +%s 2>/dev/null)
+        if [ -n "$cts0" ] && [ "$(( $(date -u +%s) - cts0 ))" -lt 600 ]; then
+          codex_recent=1
+          codex_model=$(jq -r '.model // empty' "$codex_last_json" 2>/dev/null)
+        fi
       fi
       if [ -z "$codex_model" ] || [ "$codex_model" = "unknown" ]; then
         codex_model=$(grep -m1 -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | sed 's/.*= *"//; s/".*//')
@@ -445,8 +453,12 @@ if [ -f "$codex_auth_cache" ]; then
 
         # Reasoning-effort indicator — only when elevated (skip "none" default).
         # Colored yellow to signal "this run used extra compute."
-        if [ -f "$codex_last_json" ]; then
+        if [ "$codex_recent" = 1 ]; then
           codex_reasoning=$(jq -r '.reasoning_effort // "none"' "$codex_last_json" 2>/dev/null)
+        else
+          codex_reasoning=$(grep -m1 -E '^model_reasoning_effort[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | sed 's/.*= *"//; s/".*//')
+        fi
+        if true; then
           if [ -n "$codex_reasoning" ] && [ "$codex_reasoning" != "none" ] && [ "$codex_reasoning" != "null" ]; then
             codex_part="${codex_part} ${YELLOW}r:${codex_reasoning}${RESET}"
           fi
@@ -628,7 +640,11 @@ if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
   # dispatch ran in the last 10 min (activation indicator), dim otherwise.
   agy_model=""
   if [ -f "$agy_last_json" ]; then
-    agy_model=$(jq -r '.model // empty' "$agy_last_json" 2>/dev/null)
+    at0=$(jq -r '.timestamp // empty' "$agy_last_json" 2>/dev/null)
+    ats0=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$at0" +%s 2>/dev/null)
+    if [ -n "$ats0" ] && [ "$(( $(date -u +%s) - ats0 ))" -lt 600 ]; then
+      agy_model=$(jq -r '.model // empty' "$agy_last_json" 2>/dev/null)
+    fi
   fi
   [ -z "$agy_model" ] && agy_model="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
   # Strip the "gemini-" prefix for display brevity (e.g. "3.8-flash-medium")
