@@ -84,6 +84,7 @@ Once installed and the settings.json snippet is merged, these are available via 
 | `/dispatch-codex <task>` | Force Codex for mechanical code generation — new API endpoint mirroring an existing file, CRUD scaffold, repetitive component, etc. |
 | `/dispatch-agy <task>` | Force Antigravity (agy) for long-context work (>150k input tokens), multi-modal tasks (images/PDFs), heavy reasoning (`AGY_DISPATCH_MODEL=gemini-4-argon-high`), or parallel-batch fan-out |
 | `/dispatch-gemini <task>` | Retired — redirects to `/dispatch-agy` |
+| `/dispatch-grok <task>` | xAI Grok via the Grok Build CLI on your grok.com subscription (no API key). Read-only: web + X/Twitter search + reading files, no shell/edits/MCP. Best for X lookups, breaking news, a third opinion. First line `noweb:` = no search. |
 | `/budget-check <plan>` | Pre-flight: does this plan fit in the remaining 5h window? Returns ✅ / ⚠️ / ❌ with concrete options |
 | `/execute-at-reset <plan>` | Schedule a plan to auto-execute ~1 min after the next 5h reset (via Claude Code's `CronCreate`) |
 
@@ -106,6 +107,9 @@ Environment variables (set in your shell profile):
 |---|---|---|
 | `CODEX_DISPATCH_CAP_5H` | `50` | Messages-per-5h cap used for the Codex usage bar. ChatGPT Plus is typically 20–100 on GPT-5; pick the midpoint or tune to your actual plan. |
 | `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-4-argon-high` for heavy reasoning runs. |
+| `GROK_DISPATCH_MODEL` | `grok-4.7` | Grok model (`grok models` lists them; `pick-model grok` saves a default to `~/.claude/grok-model.txt`). |
+| `GROK_DISPATCH_EFFORT` | model default | One-off reasoning effort: low / medium / high / xhigh. |
+| `GROK_DISPATCH_CWD` | current dir | Folder Grok may read during a run. |
 | `AGY_DISPATCH_TIMEOUT` | `15m` | agy's print-mode response window. Research-style dispatches (many web searches) can exceed the CLI's 5m default; raise per-run for very broad tasks (e.g. `30m`). |
 | `CODEX_QUOTA_REFRESH_SEC` | `300` | How old `~/.claude/codex-quota.json` may get before the statusline refetches live Codex usage in the background. |
 | `AGY_QUOTA_REFRESH_SEC` | `900` | Same for `~/.claude/agy-quota.json` (Antigravity weekly buckets via `agy /usage`). |
@@ -185,3 +189,9 @@ MIT — see [LICENSE](./LICENSE).
 ## Switching models (scrollable picker)
 
 Run `pick-model` (or `~/.claude/scripts/pick-model.sh`) in a terminal: pick a lane (codex / chatgpt / agy), then scroll the live model list with the arrow keys (or type to filter) and press Enter. Codex also asks for a reasoning effort. The choice becomes that lane's default (codex: `~/.codex/config.toml`; chatgpt: `~/.claude/chatgpt-model.txt`; agy: `~/.claude/agy-model.txt`) and the statusline shows it. `pick-model agy` jumps straight to a lane. Env overrides (`AGY_DISPATCH_MODEL`, `CHATGPT_DISPATCH_MODEL`) still win for a single run. Needs `fzf`.
+
+## Grok lane (xAI)
+
+Install with `curl -fsSL https://x.ai/cli/install.sh | bash`, then `grok login` (opens a browser; use the account that pays for SuperGrok / X Premium+). Grok Build signs in with the subscription, so dispatches cost no API money; the `total_cost_usd` grok prints is an API-equivalent estimate. xAI exposes no plan-usage number to scripts yet, so the statusline's `grok sub` row shows runs and tokens in the rolling 5h (from `~/.claude/grok-history.tsv`); check the real allowance with `/usage` inside the `grok` TUI.
+
+Grok imports Claude Code's MCP servers, skills, hooks and CLAUDE.md by default. `grok-dispatch.sh` turns every one of those imports off per run (`GROK_CLAUDE_*_ENABLED=false`, same for Cursor) and removes the shell, edit, write, media, scheduler, subagent and MCP-gateway tools, leaving web search, X search and read-only file tools.

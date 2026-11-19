@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code status line — shows Claude context/rate-limits, Codex,
-# Antigravity (agy), and Perplexity dispatch activity on up to four rows.
+# Antigravity (agy), Perplexity and Grok dispatch activity on up to five rows.
 # Writes a session-state cache
 # to ~/.claude/.session-state.json that the /budget-check and /execute-at-reset
 # slash commands and the auto-budget-check hook read.
@@ -35,6 +35,7 @@ SILVER='\033[38;2;200;210;220m'
 CODEX_GREEN='\033[38;2;16;163;127m'
 AGY_PURPLE='\033[38;2;156;93;247m'
 PERPLEXITY_TEAL='\033[38;2;32;178;170m'
+GROK_WHITE='\033[38;2;235;235;235m'
 
 SEP="${GRAY} | ${RESET}"
 
@@ -883,5 +884,71 @@ if [ -n "${PERPLEXITY_API_KEY:-}" ] || [ -f "$perplexity_last_json" ]; then
 fi
 
 [ -n "$perplexity_line" ] && out="${out}\n${perplexity_line}"
+
+
+# ── Grok dispatch line (fifth row) ──────────────────────────────────────────
+# xAI Grok Build CLI on the grok.com subscription (no API bill). xAI exposes
+# no plan-usage number to scripts yet (`grok usage` says to use /usage in the
+# TUI), so this row shows real activity: runs + tokens in the rolling 5h from
+# ~/.claude/grok-history.tsv, written by grok-dispatch.sh. Hidden until grok
+# is installed or has run once.
+grok_line=""
+grok_last_json="$HOME/.claude/grok-last.json"
+if [ -x "$HOME/.grok/bin/grok" ] || [ -f "$grok_last_json" ]; then
+  grok_part="${GROK_WHITE}${BOLD}grok${RESET}"
+  if [ -f "$HOME/.grok/auth.json" ] || ls "$HOME"/.grok/*auth* >/dev/null 2>&1 || [ -f "$grok_last_json" ]; then
+    grok_part="${GROK_WHITE}${BOLD}grok sub${RESET}"
+  fi
+
+  grok_model=""
+  grok_recent=0
+  if [ -f "$grok_last_json" ]; then
+    gt0=$(jq -r '.timestamp // empty' "$grok_last_json" 2>/dev/null)
+    gts0=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$gt0" +%s 2>/dev/null)
+    if [ -n "$gts0" ] && [ "$(( $(date -u +%s) - gts0 ))" -lt 600 ]; then
+      grok_recent=1
+      grok_model=$(jq -r '.model // empty' "$grok_last_json" 2>/dev/null)
+    fi
+  fi
+  [ -z "$grok_model" ] && grok_model="${GROK_DISPATCH_MODEL:-$(cat "$HOME/.claude/grok-model.txt" 2>/dev/null || echo grok-4.7)}"
+  grok_model_color="${DIM}"; [ "$grok_recent" = 1 ] && grok_model_color="${CYAN}"
+  grok_part="${grok_part} ${DIM}·${RESET} ${grok_model_color}${grok_model#grok-}${RESET}"
+
+  grok_hist="$HOME/.claude/grok-history.tsv"
+  grok_n=0; grok_tok=0
+  if [ -f "$grok_hist" ]; then
+    read -r grok_n grok_tok < <(awk -F'\t' -v c="$(date -u -v-5H +%s)" '$1>=c{n++; t+=$2} END{printf "%d %d\n", n, t}' "$grok_hist")
+  fi
+  if [ "$grok_tok" -ge 1000 ]; then grok_tok_disp=$(awk "BEGIN{printf \"%.1fk\", $grok_tok/1000}"); else grok_tok_disp="$grok_tok"; fi
+  grok_part="${grok_part}${SEP}${WHITE}${grok_n}${RESET}${DIM} sent · ${RESET}${WHITE}${grok_tok_disp}${RESET}${DIM} toks (5h)${RESET}"
+
+  if [ -f "$grok_last_json" ]; then
+    g_ts=$(jq -r '.timestamp // empty' "$grok_last_json" 2>/dev/null)
+    g_task=$(jq -r '.task_name // empty' "$grok_last_json" 2>/dev/null)
+    g_tokens=$(jq -r '.tokens // 0' "$grok_last_json" 2>/dev/null)
+    g_elapsed=$(jq -r '.elapsed_s // 0' "$grok_last_json" 2>/dev/null)
+    g_status=$(jq -r '.status // "unknown"' "$grok_last_json" 2>/dev/null)
+    g_mode=$(jq -r '.mode // empty' "$grok_last_json" 2>/dev/null)
+    g_sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$g_ts" +%s 2>/dev/null)
+    if [ -n "$g_sec" ]; then
+      g_age=$(( $(date -u +%s) - g_sec ))
+      if   [ "$g_age" -lt 60 ];    then g_age_str="${g_age}s ago"
+      elif [ "$g_age" -lt 3600 ];  then g_age_str="$((g_age / 60))m ago"
+      elif [ "$g_age" -lt 86400 ]; then g_age_str="$((g_age / 3600))h ago"
+      else g_age_str="$((g_age / 86400))d ago"; fi
+      g_age_color="${DIM}"; [ "$g_age" -lt 600 ] && g_age_color="${CYAN}"
+      if [ "$g_tokens" -ge 1000 ]; then g_tok_disp=$(awk "BEGIN{printf \"%.1fk\", $g_tokens/1000}"); else g_tok_disp="$g_tokens"; fi
+      g_tok_color="${WHITE}"; [ "$g_status" = "failed" ] && g_tok_color="${RED}"
+      g_task_str=""; [ -n "$g_task" ] && g_task_str="${WHITE}${g_task}${RESET}${DIM} · ${RESET}"
+      g_mode_str=""; [ "$g_mode" = "web" ] && g_mode_str="${DIM}web+x · ${RESET}"
+      grok_part="${grok_part}${SEP}${DIM}last:${RESET} ${g_task_str}${g_mode_str}${g_tok_color}${g_tok_disp}${RESET} ${DIM}toks · ${RESET}${g_age_color}${g_age_str}${RESET}${DIM} · ${g_elapsed}s${RESET}"
+    fi
+  else
+    grok_part="${grok_part}${SEP}${DIM}no dispatches yet${RESET}"
+  fi
+  grok_line="$grok_part"
+fi
+
+[ -n "$grok_line" ] && out="${out}\n${grok_line}"
 
 printf "%b" "$out"
