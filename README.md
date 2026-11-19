@@ -181,3 +181,7 @@ Codex and Antigravity have rough quality parity on code generation. The bottlene
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## Switching models (scrollable picker)
+
+Run `pick-model` (or `~/.claude/scripts/pick-model.sh`) in a terminal: pick a lane (codex / chatgpt / agy), then scroll the live model list with the arrow keys (or type to filter) and press Enter. Codex also asks for a reasoning effort. The choice becomes that lane's default (codex: `~/.codex/config.toml`; chatgpt: `~/.claude/chatgpt-model.txt`; agy: `~/.claude/agy-model.txt`) and the statusline shows it. `pick-model agy` jumps straight to a lane. Env overrides (`AGY_DISPATCH_MODEL`, `CHATGPT_DISPATCH_MODEL`) still win for a single run. Needs `fzf`.

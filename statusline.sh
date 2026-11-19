@@ -646,7 +646,7 @@ if [ -n "$agy_bin" ] || [ -f "$agy_last_json" ]; then
       agy_model=$(jq -r '.model // empty' "$agy_last_json" 2>/dev/null)
     fi
   fi
-  [ -z "$agy_model" ] && agy_model="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
+  [ -z "$agy_model" ] && agy_model="${AGY_DISPATCH_MODEL:-$(cat "$HOME/.claude/agy-model.txt" 2>/dev/null || echo gemini-3.8-flash-medium)}"
   # Strip the "gemini-" prefix for display brevity (e.g. "3.8-flash-medium")
   agy_model_short="${agy_model#gemini-}"
   agy_model_color="${DIM}"

@@ -43,6 +43,7 @@ FILES=(
   "scripts/agy-quota-refresh.sh:scripts/agy-quota-refresh.sh"
   "scripts/perplexity-dispatch.sh:scripts/perplexity-dispatch.sh"
   "scripts/perplexity-set-balance.sh:scripts/perplexity-set-balance.sh"
+  "scripts/pick-model.sh:scripts/pick-model.sh"
   "scripts/chatgpt-dispatch.sh:scripts/chatgpt-dispatch.sh"
   "scripts/rotate-logs.sh:scripts/rotate-logs.sh"
   "commands/dispatch-codex.md:commands/dispatch-codex.md"

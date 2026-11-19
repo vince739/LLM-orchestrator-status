@@ -95,7 +95,7 @@ esac
 
 # Default: newest flash tier at medium effort. Override via env var — e.g.
 # export AGY_DISPATCH_MODEL=gemini-4-argon-high   (heavy reasoning)
-AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
+AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-$(cat "$HOME/.claude/agy-model.txt" 2>/dev/null || echo gemini-3.8-flash-medium)}"
 
 # agy's built-in print-mode timeout defaults to 5m, which agentic research
 # tasks (many web searches) routinely exceed — the run dies with

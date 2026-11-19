@@ -49,7 +49,7 @@ ANSWER_FILE="/tmp/chatgpt-answer-${TS_FILE}.md"
 LAST_JSON="$CLAUDE_DIR/chatgpt-last.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-MODEL_REQ="${CHATGPT_DISPATCH_MODEL:-gpt-6.2-sol}"
+MODEL_REQ="${CHATGPT_DISPATCH_MODEL:-$(cat "$HOME/.claude/chatgpt-model.txt" 2>/dev/null || echo gpt-6.2-sol)}"
 
 # "search:" prefix on the first line enables live web search.
 SEARCH_FLAG=()
