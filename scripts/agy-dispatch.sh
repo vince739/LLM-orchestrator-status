@@ -19,7 +19,7 @@
 #
 # Auth: agy uses the Google-account session shared with the Antigravity desktop
 # app — no API key needed, and it does NOT consume the Gemini API free-tier
-# quota. Model list: `agy models` (gemini-3.7-flash-*, gemini-3.1-pro-*, ...).
+# quota. Model list: `agy models` (gemini-3.8-flash-*, gemini-4-argon-*, ...).
 #
 # Note: agy requires the attached-flag prompt form (-p='...'); a space-separated
 # `-p "prompt"` is rejected. chars_out is a proxy for output volume (no token
@@ -94,7 +94,7 @@ PY
 esac
 
 # Default: newest flash tier at medium effort. Override via env var — e.g.
-# export AGY_DISPATCH_MODEL=gemini-3.1-pro-high   (heavy reasoning)
+# export AGY_DISPATCH_MODEL=gemini-4-argon-high   (heavy reasoning)
 AGY_DISPATCH_MODEL="${AGY_DISPATCH_MODEL:-gemini-3.8-flash-medium}"
 
 # agy's built-in print-mode timeout defaults to 5m, which agentic research

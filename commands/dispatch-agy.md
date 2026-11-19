@@ -5,13 +5,13 @@ argument-hint: <task description — ideally long-context, heavy-reasoning, or b
 
 Run the Antigravity dispatch workflow for the task below, even if the auto-dispatch heuristics wouldn't have fired. Do NOT shortcut the spec-writing or smoke-test steps.
 
-Antigravity CLI (`agy`) is the successor to the Gemini CLI dispatch. It auths via the Google-account session shared with the Antigravity desktop app — no API key, and it does NOT consume the Gemini API free-tier quota, so it reaches the Gemini 3.x models (`gemini-3.7-flash-*`, `gemini-3.1-pro-*`) that the API key cannot.
+Antigravity CLI (`agy`) is the successor to the Gemini CLI dispatch. It auths via the Google-account session shared with the Antigravity desktop app — no API key, and it does NOT consume the Gemini API free-tier quota, so it reaches the Gemini 3.x models (`gemini-3.8-flash-*`, `gemini-4-argon-*`) that the API key cannot.
 
 ## When to prefer Antigravity over Codex
 
 Antigravity is the right executor when ANY of these apply:
 - **Long-context** — input > ~150k tokens (whole repo dump, large logs, big CSV/JSON, long PDFs).
-- **Heavy reasoning** — set `AGY_DISPATCH_MODEL=gemini-3.1-pro-high` for the run.
+- **Heavy reasoning** — set `AGY_DISPATCH_MODEL=gemini-4-argon-high` for the run.
 - **Multi-modal** — input includes images, PDFs, or screenshots. Codex CLI is text-only.
 - **Parallel batch** — 5+ similar sub-tasks to fire concurrently.
 - **Codex rate-limited** — `~/.claude/codex-last.json` shows a recent rate-limit failure.

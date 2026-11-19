@@ -11,8 +11,8 @@ The core idea: keep Claude (Opus / Sonnet) on judgment, debugging, smoke-testing
 ## Example statusline
 
 ```
-Opus 4.7 (1M context) | [████░░░░░░] 38% | [██░░░░░░░░] 5h:20% (4h 52m - 05:01) | [█████▉░░░░] 7d:59% (3d 13h - 13:09) | cache:82% (saved $4.21) | $31.32 | 2797m | @yourname
-codex plus · gpt-6-astra r:medium | [▏░░░░░] 5h:3% (4h 12m) | [▎░░░░░] 7d:5% (6d 11h) | 1 sent · 42.1k toks (5h) | last: scraper-api · 6.2k toks · 2m ago · 47s
+Opus 5.5 | [████░░░░░░] 38% | [██░░░░░░░░] 5h:20% (4h 52m - 05:01) | [█████▉░░░░] 7d:59% (3d 13h - 13:09) | cache:82% (saved $4.21) | $31.32 | 2797m | @yourname
+codex plus · gpt-6.2-astra r:medium | [▏░░░░░] 5h:3% (4h 12m) | [▎░░░░░] 7d:5% (6d 11h) | 1 sent · 42.1k toks (5h) | last: scraper-api · 6.2k toks · 2m ago · 47s
 antigravity · 3.8-flash-medium | [█▊░░░░] gemini 5h:31% (3h 2m) | [▍░░░░░] gemini 7d:7% (5d 12h) | [░░░░░░] claude/gpt 5h:0% | [░░░░░░] claude/gpt 7d:0% | 2 sent · 8.4k chars (5h) | last: summarize-log · 4.1k chars · 12m ago · 18s
 perplexity · sonar | [▏░░░░░] 1/~100 · 2.1k toks · 20 cites (5h) | last: fact-check · 16 toks · 20 cites · 1h ago · 2s
 ```
@@ -82,7 +82,7 @@ Once installed and the settings.json snippet is merged, these are available via 
 | Command | When to use |
 |---|---|
 | `/dispatch-codex <task>` | Force Codex for mechanical code generation — new API endpoint mirroring an existing file, CRUD scaffold, repetitive component, etc. |
-| `/dispatch-agy <task>` | Force Antigravity (agy) for long-context work (>150k input tokens), multi-modal tasks (images/PDFs), heavy reasoning (`AGY_DISPATCH_MODEL=gemini-3.1-pro-high`), or parallel-batch fan-out |
+| `/dispatch-agy <task>` | Force Antigravity (agy) for long-context work (>150k input tokens), multi-modal tasks (images/PDFs), heavy reasoning (`AGY_DISPATCH_MODEL=gemini-4-argon-high`), or parallel-batch fan-out |
 | `/dispatch-gemini <task>` | Retired — redirects to `/dispatch-agy` |
 | `/budget-check <plan>` | Pre-flight: does this plan fit in the remaining 5h window? Returns ✅ / ⚠️ / ❌ with concrete options |
 | `/execute-at-reset <plan>` | Schedule a plan to auto-execute ~1 min after the next 5h reset (via Claude Code's `CronCreate`) |
@@ -105,7 +105,7 @@ Environment variables (set in your shell profile):
 | Var | Default | Purpose |
 |---|---|---|
 | `CODEX_DISPATCH_CAP_5H` | `50` | Messages-per-5h cap used for the Codex usage bar. ChatGPT Plus is typically 20–100 on GPT-5; pick the midpoint or tune to your actual plan. |
-| `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-3.1-pro-high` for heavy reasoning runs. |
+| `AGY_DISPATCH_MODEL` | `gemini-3.8-flash-medium` | The model the agy dispatch wrapper forces via `--model`. See `agy models` for the list; use `gemini-4-argon-high` for heavy reasoning runs. |
 | `AGY_DISPATCH_TIMEOUT` | `15m` | agy's print-mode response window. Research-style dispatches (many web searches) can exceed the CLI's 5m default; raise per-run for very broad tasks (e.g. `30m`). |
 | `CODEX_QUOTA_REFRESH_SEC` | `300` | How old `~/.claude/codex-quota.json` may get before the statusline refetches live Codex usage in the background. |
 | `AGY_QUOTA_REFRESH_SEC` | `900` | Same for `~/.claude/agy-quota.json` (Antigravity weekly buckets via `agy /usage`). |

@@ -1,5 +1,5 @@
 ---
-description: Dispatch a non-coding query (reasoning, drafting, analysis, second opinion) to ChatGPT's GPT-5.6-terra via the Codex CLI. Uses the ChatGPT subscription — no API key.
+description: Dispatch a non-coding query (reasoning, drafting, analysis, second opinion) to ChatGPT's GPT-6.2-sol via the Codex CLI. Uses the ChatGPT subscription — no API key.
 argument-hint: <[search:] query — e.g. "search: what changed in the 2026 FTC ad-disclosure rules?">
 ---
 
@@ -37,5 +37,5 @@ $ARGUMENTS
 
 ## Config knobs
 
-- `CHATGPT_DISPATCH_MODEL` — model id (default `gpt-5.6-terra`)
+- `CHATGPT_DISPATCH_MODEL` — model id (default `gpt-6.2-sol`)
 - `CHATGPT_DISPATCH_CAP_5H` — advisory 5h dispatch cap (default 100; shared plan quota with Codex)

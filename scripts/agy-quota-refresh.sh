@@ -93,7 +93,7 @@ for gi, g in enumerate(groups_in):
             "id": bid or f"{prefix}-{window}",
             "group": prefix,
             "name": g.get("name"),
-            "short": SHORT.get(prefix, prefix),
+            "short": "argon" if "argon" in bid.lower() else SHORT.get(prefix, prefix),
             "win": WIN.get(window, window or "?"),
             "remaining_fraction": rf,
             "used_percent": used,

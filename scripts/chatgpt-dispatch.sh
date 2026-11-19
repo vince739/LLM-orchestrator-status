@@ -14,7 +14,7 @@
 # (-c tools.web_search=true; `codex exec` does not accept the tui --search flag).
 #
 # Env knobs:
-#   CHATGPT_DISPATCH_MODEL   — model id (default: gpt-5.6-terra)
+#   CHATGPT_DISPATCH_MODEL   — model id (default: gpt-6.2-sol)
 #   CHATGPT_DISPATCH_CAP_5H  — advisory 5h dispatch cap (default: 100)
 #
 # Writes:
@@ -49,7 +49,7 @@ ANSWER_FILE="/tmp/chatgpt-answer-${TS_FILE}.md"
 LAST_JSON="$CLAUDE_DIR/chatgpt-last.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-MODEL_REQ="${CHATGPT_DISPATCH_MODEL:-gpt-5.6-terra}"
+MODEL_REQ="${CHATGPT_DISPATCH_MODEL:-gpt-6.2-sol}"
 
 # "search:" prefix on the first line enables live web search.
 SEARCH_FLAG=()
